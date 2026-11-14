@@ -1,0 +1,635 @@
+import React, { useState } from 'react';
+import { useGameStore, DEFAULT_SCHEDULER_WEIGHTS } from '../../store/useGameStore';
+import { CHAPTERS, COUNTRIES } from '../../data/gameData';
+import {
+  formatStatNumber,
+  getStatBarProgress,
+} from '../../utils/statSystem';
+import {
+  getLifeDifficultyBandInfo,
+  DEFAULT_COUNTRY_PARAMETERS,
+} from '../../utils/socialSimulation';
+import {
+  Pause,
+  Volume2,
+  VolumeX,
+  Heart,
+  Smile,
+  Coins,
+  Users,
+  BookOpen,
+  Sparkles,
+  Shield,
+  Sliders,
+  Globe,
+  Building2,
+} from 'lucide-react';
+import { StatDelta, CountryId, CountrySocialParams } from '../../types/game';
+
+const STAT_META = [
+  { key: 'happiness', label: '幸福度', icon: Smile, color: 'bg-amber-400', text: 'text-amber-300' },
+  { key: 'health', label: '健康', icon: Heart, color: 'bg-emerald-400', text: 'text-emerald-300' },
+  { key: 'money', label: 'お金', icon: Coins, color: 'bg-yellow-400', text: 'text-yellow-300' },
+  { key: 'relationships', label: '人間関係', icon: Users, color: 'bg-rose-400', text: 'text-rose-300' },
+  { key: 'knowledge', label: '知識・スキル', icon: BookOpen, color: 'bg-sky-400', text: 'text-sky-300' },
+  { key: 'selfActualization', label: '自己実現', icon: Sparkles, color: 'bg-purple-400', text: 'text-purple-300' },
+  { key: 'resilience', label: 'レジリエンス', icon: Shield, color: 'bg-teal-400', text: 'text-teal-300' },
+] as const;
+
+const DELTA_LABELS: Record<keyof StatDelta, string> = {
+  happiness: '幸福度',
+  health: '健康',
+  money: 'お金',
+  relationships: '人間関係',
+  knowledge: '知識・スキル',
+  selfActualization: '自己実現',
+  resilience: 'レジリエンス',
+};
+
+export const HUD: React.FC = () => {
+  const phase = useGameStore((s) => s.phase);
+  const difficulty = useGameStore((s) => s.difficulty);
+  const age = useGameStore((s) => s.age);
+  const chapter = useGameStore((s) => s.chapter);
+  const country = useGameStore((s) => s.country);
+  const conditions = useGameStore((s) => s.conditions);
+  const initialLifeDifficultyIndex = useGameStore((s) => s.initialLifeDifficultyIndex);
+  const lifeDifficultyIndex = useGameStore((s) => s.lifeDifficultyIndex);
+  const environmentChangeLogs = useGameStore((s) => s.environmentChangeLogs);
+  const utilizedSupports = useGameStore((s) => s.utilizedSupports);
+  const countryParamsMap = useGameStore((s) => s.countryParamsMap);
+  const stats = useGameStore((s) => s.stats);
+  const tags = useGameStore((s) => s.tags);
+  const feedbacks = useGameStore((s) => s.feedbacks);
+  const soundEnabled = useGameStore((s) => s.soundEnabled);
+  const challengeScore = useGameStore((s) => s.challengeScore);
+  const challengeTargetScore = useGameStore((s) => s.challengeTargetScore);
+  const challengeTimeLeft = useGameStore((s) => s.challengeTimeLeft);
+  const activeChallengeId = useGameStore((s) => s.activeChallengeId);
+  const debugPanelOpen = useGameStore((s) => s.debugPanelOpen);
+  const socialEnvPanelOpen = useGameStore((s) => s.socialEnvPanelOpen);
+  const schedulerWeights = useGameStore((s) => s.schedulerWeights);
+
+  const toggleSound = useGameStore((s) => s.toggleSound);
+  const setPhase = useGameStore((s) => s.setPhase);
+  const toggleDebugPanel = useGameStore((s) => s.toggleDebugPanel);
+  const toggleSocialEnvPanel = useGameStore((s) => s.toggleSocialEnvPanel);
+  const setSchedulerWeights = useGameStore((s) => s.setSchedulerWeights);
+  const setDifficulty = useGameStore((s) => s.setDifficulty);
+  const updateCountryParams = useGameStore((s) => s.updateCountryParams);
+  const resetCountryParams = useGameStore((s) => s.resetCountryParams);
+
+  const [debugTab, setDebugTab] = useState<'scheduler' | 'country'>('scheduler');
+  const [selectedDebugCountry, setSelectedDebugCountry] = useState<CountryId | null>(null);
+
+  if (phase !== 'PLAYING' && phase !== 'CHALLENGE_PLAYING') return null;
+
+  const chapterInfo = CHAPTERS[chapter];
+  const progressPercent = Math.min(100, (age / 82) * 100);
+  const bandInfo = getLifeDifficultyBandInfo(lifeDifficultyIndex);
+  const activeCountryParams =
+    countryParamsMap[country.id] || DEFAULT_COUNTRY_PARAMETERS[country.id];
+  const latestEnvLog =
+    environmentChangeLogs.length > 0
+      ? environmentChangeLogs[environmentChangeLogs.length - 1]
+      : null;
+
+  const targetCountryForDebug: CountryId = selectedDebugCountry || country.id;
+  const debugCountryParams =
+    countryParamsMap[targetCountryForDebug] ||
+    DEFAULT_COUNTRY_PARAMETERS[targetCountryForDebug];
+
+  return (
+    <div className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3 md:p-5">
+      {/* Top Bar: Age, Country, Environment Difficulty, Chapter Progress, Sound & Pause */}
+      <div className="flex flex-wrap items-start justify-between gap-2.5">
+        {/* Left: Country, Age, Environment Difficulty & Chapter Progress */}
+        <div className="glass-panel rounded-2xl px-3.5 py-2 flex flex-wrap items-center gap-3.5 shadow-xl pointer-events-auto">
+          <div className="flex items-center gap-2">
+            <span className="text-3xl">{country.flag}</span>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-sky-300">{country.name}生まれ</span>
+                <span className="text-[10px] font-black px-1.5 py-0.2 rounded bg-sky-500/25 border border-sky-400/40 text-sky-200">
+                  {difficulty}
+                </span>
+              </div>
+              <div className="text-2xl md:text-3xl font-black text-white leading-none mt-0.5">
+                {Math.floor(age)}
+                <span className="text-sm font-bold text-slate-300 ml-1">歳</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="h-9 w-px bg-white/15 hidden sm:block" />
+
+          {/* Dynamic Life Environment Difficulty Badge (Clickable to open Social Environment Panel) */}
+          <button
+            type="button"
+            onClick={toggleSocialEnvPanel}
+            className="text-left bg-slate-900/75 hover:bg-slate-800/90 px-2.5 py-1.5 rounded-xl border border-white/10 transition"
+            title="クリックで現在の社会環境・出生条件パネルを表示"
+          >
+            <div className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
+              <Building2 className="w-3 h-3 text-sky-300" />
+              <span>人生環境難易度:</span>
+              <span className="font-black text-white">{lifeDifficultyIndex}/100</span>
+            </div>
+            <div
+              className="text-[11px] font-black mt-0.5"
+              style={{ color: bandInfo.color }}
+            >
+              {bandInfo.band}
+            </div>
+          </button>
+
+          <div className="h-9 w-px bg-white/15 hidden md:block" />
+
+          <div className="min-w-[140px] md:min-w-[200px]">
+            <div className="flex items-center justify-between text-xs font-bold mb-1">
+              <span className="text-amber-300">{chapterInfo.title}</span>
+              <span className="text-slate-300">{Math.round(progressPercent)}%</span>
+            </div>
+            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-white/10">
+              <div
+                className="h-full bg-gradient-to-r from-sky-400 via-indigo-400 to-amber-400 transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <div className="text-[10px] text-slate-300 mt-0.5 truncate">
+              {conditions.residenceArea}
+              {tags.includes('urban_relocated') ? '→都市転居済' : ''} ／ {conditions.economy}
+            </div>
+          </div>
+        </div>
+
+        {/* Center Challenge Banner if in Challenge Stage */}
+        {phase === 'CHALLENGE_PLAYING' && (
+          <div className="glass-panel border-2 border-amber-400 rounded-2xl px-5 py-2 text-center shadow-2xl animate-pulse">
+            <div className="text-xs font-black text-amber-300 uppercase tracking-wider">
+              🔥 特別チャレンジ進行中 ({country.flag} {country.name} / 目標 {challengeTargetScore}pt)
+            </div>
+            <div className="flex items-center justify-center gap-6 mt-1">
+              <div className="text-base md:text-lg font-black text-white">
+                スコア:{' '}
+                <span className="text-amber-300 text-2xl">
+                  {formatStatNumber(challengeScore)}
+                </span>{' '}
+                pt
+              </div>
+              <div className="text-base md:text-lg font-black text-white">
+                残り:{' '}
+                <span className="text-sky-300 text-2xl">
+                  {Math.max(0, Math.ceil(challengeTimeLeft))}
+                </span>{' '}
+                秒
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Right: Social Environment Panel Button, Debug Drawer Button, Sound & Pause */}
+        <div className="flex items-center gap-2 pointer-events-auto">
+          <button
+            type="button"
+            onClick={toggleSocialEnvPanel}
+            className={`glass-panel px-3 py-2.5 rounded-xl transition flex items-center gap-1.5 font-bold text-xs shadow-lg ${
+              socialEnvPanelOpen
+                ? 'border-emerald-400 bg-emerald-500/30 text-white'
+                : 'hover:bg-slate-800/80 text-emerald-300'
+            }`}
+          >
+            <Globe className="w-4 h-4" />
+            <span className="hidden sm:inline">社会環境</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleDebugPanel}
+            className={`glass-panel px-3 py-2.5 rounded-xl transition flex items-center gap-1.5 font-bold text-xs shadow-lg ${
+              debugPanelOpen
+                ? 'border-sky-400 bg-sky-500/30 text-white'
+                : 'hover:bg-slate-800/80 text-sky-300'
+            }`}
+          >
+            <Sliders className="w-4 h-4" />
+            <span className="hidden sm:inline">比率・国別デバッグ</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-label="音量切り替え"
+            className="glass-panel p-2.5 rounded-xl hover:bg-slate-800/80 transition text-white shadow-lg"
+          >
+            {soundEnabled ? (
+              <Volume2 className="w-5 h-5 text-sky-300" />
+            ) : (
+              <VolumeX className="w-5 h-5 text-slate-400" />
+            )}
+          </button>
+
+          {phase === 'PLAYING' && (
+            <button
+              type="button"
+              onClick={() => setPhase('PAUSED')}
+              className="glass-panel px-3.5 py-2.5 rounded-xl hover:bg-slate-800/80 transition flex items-center gap-1.5 font-bold text-xs md:text-sm text-white shadow-lg"
+            >
+              <Pause className="w-4 h-4 text-amber-300" />
+              <span>ポーズ</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Main Content Area: Left Life Stats, Center Popups, Right Social Env / Debug Drawer */}
+      <div className="flex items-start justify-between flex-1 mt-3 gap-2">
+        {/* Left: 7 Uncapped Life Stats */}
+        <div className="glass-panel rounded-2xl p-3 w-52 md:w-64 shadow-xl space-y-2 pointer-events-auto">
+          <div className="flex items-center justify-between text-[11px] font-extrabold text-sky-300 tracking-wider uppercase border-b border-white/10 pb-1">
+            <span>LIFE STATUS</span>
+            <span className="text-[10px] text-slate-400 font-semibold">上限なし成長</span>
+          </div>
+          {STAT_META.map((item) => {
+            const Icon = item.icon;
+            const val = stats[item.key];
+            const barInfo = getStatBarProgress(val);
+            return (
+              <div key={item.key} className="space-y-0.5">
+                <div className="flex items-center justify-between text-xs gap-1">
+                  <span className="flex items-center gap-1.5 font-bold text-slate-200 truncate">
+                    <Icon className={`w-3.5 h-3.5 shrink-0 ${item.text}`} />
+                    <span className="truncate">{item.label}：</span>
+                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {barInfo.tierIndex > 1 && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-white/10 text-amber-300">
+                        {barInfo.tierLabel}
+                      </span>
+                    )}
+                    <span className={`font-black tabular-nums ${item.text}`}>
+                      {formatStatNumber(val)}
+                    </span>
+                  </div>
+                </div>
+                <div className="w-full h-1.5 bg-slate-800/90 rounded-full overflow-hidden flex items-center">
+                  <div
+                    className={`h-full ${item.color} transition-all duration-300`}
+                    style={{ width: `${barInfo.percent}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[9px] text-slate-400 leading-none">
+                  <span>{formatStatNumber(barInfo.prevBound)}</span>
+                  <span>NEXT {formatStatNumber(barInfo.nextBound)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Center Floating Choice / Stat Delta / Environment Change Popups */}
+        <div className="flex-1 flex flex-col items-center justify-start pt-2 px-2 space-y-2 pointer-events-none">
+          {feedbacks.map((fb) => (
+            <div
+              key={fb.id}
+              className="animate-float-up glass-panel px-5 py-2.5 rounded-2xl border-2 text-center shadow-2xl max-w-md"
+              style={{ borderColor: fb.color }}
+            >
+              <div className="text-sm md:text-base font-black text-white">{fb.title}</div>
+              {fb.subtitle && (
+                <div className="text-xs text-sky-200 mt-0.5 font-medium">
+                  {fb.subtitle}
+                </div>
+              )}
+              {Object.keys(fb.deltas).length > 0 && (
+                <div className="flex flex-wrap items-center justify-center gap-1.5 mt-1.5">
+                  {Object.entries(fb.deltas).map(([k, v]) => {
+                    if (!v) return null;
+                    const label = DELTA_LABELS[k as keyof StatDelta] || k;
+                    const isPos = v > 0;
+                    return (
+                      <span
+                        key={k}
+                        className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full tabular-nums ${
+                          isPos
+                            ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-400/40'
+                            : 'bg-rose-500/25 text-rose-300 border border-rose-400/40'
+                        }`}
+                      >
+                        {label} {isPos ? `+${formatStatNumber(v)}` : `-${formatStatNumber(Math.abs(v))}`}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Right Side Drawers: Social Environment Panel & Live Debug Panel */}
+        <div className="flex flex-col gap-2.5 items-end">
+          {/* 1. In-Game Social Environment Panel */}
+          {socialEnvPanelOpen && (
+            <div className="glass-panel rounded-2xl p-3.5 w-68 md:w-80 shadow-2xl space-y-2 pointer-events-auto border border-emerald-400/40 max-h-[68vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-white/15 pb-1.5">
+                <span className="text-xs font-black text-emerald-300 uppercase flex items-center gap-1.5">
+                  <Globe className="w-4 h-4" />
+                  現在の社会環境・出生条件
+                </span>
+                <span className="text-xs font-bold text-white">
+                  {country.flag} {country.name}
+                </span>
+              </div>
+
+              <div className="bg-slate-900/80 p-2.5 rounded-xl border border-white/10">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-300 font-bold">人生環境の難易度:</span>
+                  <span className="font-black text-white tabular-nums">
+                    {lifeDifficultyIndex} / 100（初期 {initialLifeDifficultyIndex}）
+                  </span>
+                </div>
+                <div
+                  className="text-xs font-black mt-0.5"
+                  style={{ color: bandInfo.color }}
+                >
+                  {bandInfo.band}
+                </div>
+                {latestEnvLog && (
+                  <div className="text-[11px] text-sky-200 mt-1 pt-1 border-t border-white/10">
+                    📌 直近の変化理由：{latestEnvLog.reason}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                <div className="bg-slate-900/60 p-2 rounded-lg">
+                  <span className="text-slate-400 block text-[10px]">家庭の経済状況</span>
+                  <span className="font-bold text-amber-300">{conditions.economy}</span>
+                </div>
+                <div className="bg-slate-900/60 p-2 rounded-lg">
+                  <span className="text-slate-400 block text-[10px]">居住地域</span>
+                  <span className="font-bold text-sky-300">
+                    {conditions.residenceArea}
+                    {tags.includes('urban_relocated') ? '（都市移動済）' : ''}
+                  </span>
+                </div>
+                <div className="bg-slate-900/60 p-2 rounded-lg col-span-2">
+                  <span className="text-slate-400 block text-[10px]">家庭からの支援</span>
+                  <span className="font-bold text-white">{conditions.familySupport}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-1 text-[10px] text-center">
+                <div className="bg-slate-900/70 p-1.5 rounded">
+                  <span className="text-slate-400 block">教育アクセス</span>
+                  <span className="font-black text-sky-300">{activeCountryParams.educationAccess}</span>
+                </div>
+                <div className="bg-slate-900/70 p-1.5 rounded">
+                  <span className="text-slate-400 block">医療アクセス</span>
+                  <span className="font-black text-emerald-300">{activeCountryParams.medicalAccess}</span>
+                </div>
+                <div className="bg-slate-900/70 p-1.5 rounded">
+                  <span className="text-slate-400 block">雇用機会</span>
+                  <span className="font-black text-amber-300">{activeCountryParams.employmentOpportunity}</span>
+                </div>
+                <div className="bg-slate-900/70 p-1.5 rounded">
+                  <span className="text-slate-400 block">社会保障</span>
+                  <span className="font-black text-teal-300">{activeCountryParams.socialSecurity}</span>
+                </div>
+                <div className="bg-slate-900/70 p-1.5 rounded">
+                  <span className="text-slate-400 block">地域間格差</span>
+                  <span className="font-black text-purple-300">{activeCountryParams.regionalDisparity}</span>
+                </div>
+                <div className="bg-slate-900/70 p-1.5 rounded">
+                  <span className="text-slate-400 block">移動機会</span>
+                  <span className="font-black text-indigo-300">{activeCountryParams.socialMobility}</span>
+                </div>
+              </div>
+
+              {utilizedSupports.length > 0 && (
+                <div className="bg-sky-950/50 border border-sky-400/30 p-2 rounded-xl">
+                  <div className="text-[10px] font-extrabold text-sky-300">
+                    🏛️ 利用した支援制度 ({utilizedSupports.length})
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {utilizedSupports.map((sup, i) => (
+                      <span
+                        key={i}
+                        className="text-[10px] bg-sky-500/20 text-sky-200 px-2 py-0.5 rounded-full font-bold"
+                      >
+                        {sup}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 2. Live Scheduler & Country Parameter Debug Drawer */}
+          {debugPanelOpen && (
+            <div className="glass-panel rounded-2xl p-3.5 w-72 md:w-80 shadow-2xl space-y-2.5 pointer-events-auto border border-sky-400/40 max-h-[72vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-white/15 pb-1.5">
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setDebugTab('scheduler')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition ${
+                      debugTab === 'scheduler'
+                        ? 'bg-sky-500 text-white'
+                        : 'bg-slate-800 text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    イベント比率
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDebugTab('country')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition ${
+                      debugTab === 'country'
+                        ? 'bg-amber-500 text-slate-950'
+                        : 'bg-slate-800 text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    国別パラメータ
+                  </button>
+                </div>
+
+                {debugTab === 'scheduler' ? (
+                  <button
+                    type="button"
+                    onClick={() => setSchedulerWeights(DEFAULT_SCHEDULER_WEIGHTS)}
+                    className="text-[10px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold"
+                  >
+                    初期値に戻す
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => resetCountryParams(targetCountryForDebug)}
+                    className="text-[10px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold"
+                  >
+                    初期値に戻す
+                  </button>
+                )}
+              </div>
+
+              {debugTab === 'scheduler' ? (
+                <>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-300 font-bold">アクション難易度:</span>
+                    <div className="flex gap-1">
+                      {(['EASY', 'NORMAL', 'HARD'] as const).map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => setDifficulty(d)}
+                          className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                            difficulty === d
+                              ? 'bg-sky-500 text-white'
+                              : 'bg-slate-800 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const total =
+                      schedulerWeights.mandatoryChoice +
+                      schedulerWeights.forcedEvent +
+                      schedulerWeights.avoidableObstacle +
+                      schedulerWeights.chanceRisk;
+                    const pct = (v: number) => (total > 0 ? Math.round((v / total) * 100) : 0);
+                    return [
+                      {
+                        key: 'mandatoryChoice' as const,
+                        label: 'A. 必須選択',
+                        val: schedulerWeights.mandatoryChoice,
+                        color: 'accent-sky-400',
+                      },
+                      {
+                        key: 'forcedEvent' as const,
+                        label: 'B. 強制発生',
+                        val: schedulerWeights.forcedEvent,
+                        color: 'accent-amber-400',
+                      },
+                      {
+                        key: 'avoidableObstacle' as const,
+                        label: 'C. 回避障害物',
+                        val: schedulerWeights.avoidableObstacle,
+                        color: 'accent-rose-400',
+                      },
+                      {
+                        key: 'chanceRisk' as const,
+                        label: 'D. チャンス&リスク',
+                        val: schedulerWeights.chanceRisk,
+                        color: 'accent-purple-400',
+                      },
+                    ].map((item) => (
+                      <div key={item.key} className="space-y-0.5">
+                        <div className="flex justify-between text-[11px] font-bold">
+                          <span className="text-slate-200">{item.label}</span>
+                          <span className="text-sky-300 tabular-nums">
+                            {item.val} ({pct(item.val)}%)
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={item.val}
+                          onChange={(e) =>
+                            setSchedulerWeights({ [item.key]: Number(e.target.value) })
+                          }
+                          className={`w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer ${item.color}`}
+                        />
+                      </div>
+                    ));
+                  })()}
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-6 gap-1">
+                    {COUNTRIES.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setSelectedDebugCountry(c.id)}
+                        className={`p-1 rounded text-xs font-bold border ${
+                          targetCountryForDebug === c.id
+                            ? 'bg-amber-400/30 border-amber-300 text-white'
+                            : 'bg-slate-900 border-white/10 text-slate-400'
+                        }`}
+                        title={c.name}
+                      >
+                        {c.flag}
+                      </button>
+                    ))}
+                  </div>
+
+                  {(
+                    [
+                      { key: 'educationAccess', label: '教育アクセス', min: 0, max: 100, step: 1 },
+                      { key: 'medicalAccess', label: '医療アクセス', min: 0, max: 100, step: 1 },
+                      { key: 'employmentOpportunity', label: '雇用機会', min: 0, max: 100, step: 1 },
+                      { key: 'incomeLivingBalance', label: '経済環境', min: 0, max: 100, step: 1 },
+                      { key: 'socialSecurity', label: '社会保障', min: 0, max: 100, step: 1 },
+                      { key: 'regionalDisparity', label: '地域間格差', min: 0, max: 100, step: 1 },
+                      {
+                        key: 'difficultyEventMultiplier',
+                        label: '困難イベント影響倍率',
+                        min: 0.5,
+                        max: 2.0,
+                        step: 0.05,
+                      },
+                    ] as {
+                      key: keyof CountrySocialParams;
+                      label: string;
+                      min: number;
+                      max: number;
+                      step: number;
+                    }[]
+                  ).map((item) => {
+                    const val = debugCountryParams[item.key];
+                    return (
+                      <div key={item.key} className="space-y-0.5">
+                        <div className="flex justify-between text-[11px] font-bold">
+                          <span className="text-slate-200">{item.label}</span>
+                          <span className="text-amber-300 tabular-nums">
+                            {item.key === 'difficultyEventMultiplier'
+                              ? `${val.toFixed(2)}x`
+                              : val}
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={item.min}
+                          max={item.max}
+                          step={item.step}
+                          value={val}
+                          onChange={(e) =>
+                            updateCountryParams(targetCountryForDebug, {
+                              [item.key]: Number(e.target.value),
+                            })
+                          }
+                          className="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer accent-amber-400"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!socialEnvPanelOpen && !debugPanelOpen && (
+            <div className="hidden md:block w-52" />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
