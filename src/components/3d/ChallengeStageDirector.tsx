@@ -245,9 +245,12 @@ export const ChallengeStageDirector: React.FC<ChallengeStageDirectorProps> = ({
 
   const phase = useGameStore((s) => s.phase);
   const activeChallengeId = useGameStore((s) => s.activeChallengeId);
+  const flightBounds = useGameStore((s) => s.flightBounds);
 
   const spawnWave = () => {
-    const cid = useGameStore.getState().activeChallengeId;
+    const store = useGameStore.getState();
+    const cid = store.activeChallengeId;
+    const bounds = store.flightBounds;
     const list =
       cid === 'exam'
         ? buildDynamicExamWaves()
@@ -257,11 +260,21 @@ export const ChallengeStageDirector: React.FC<ChallengeStageDirectorProps> = ({
     const template = list[waveIndexRef.current % list.length];
     waveIndexRef.current += 1;
 
+    // Scale item coordinates dynamically so they always lie inside the player's movable range on mobile & PC
+    const scaleX = Math.min(1.0, bounds.corridorHalfWidth / 7.5);
+    const scaleY = Math.min(1.0, (bounds.maxY - bounds.minY) / 8.0);
+    const scaledItems = template.items.map((it) => ({
+      ...it,
+      x: THREE.MathUtils.clamp(it.x * scaleX, bounds.minX * 0.85, bounds.maxX * 0.85),
+      y: THREE.MathUtils.clamp(it.y * scaleY, bounds.minY * 0.75, bounds.maxY * 0.75),
+    }));
+
     zPosRef.current = -85;
     resolvedRef.current = false;
     setActiveWave({
       id: waveIndexRef.current,
       ...template,
+      items: scaledItems,
     });
   };
 
@@ -336,11 +349,15 @@ export const ChallengeStageDirector: React.FC<ChallengeStageDirectorProps> = ({
 
   if (phase !== 'CHALLENGE_PLAYING' || !activeWave) return null;
 
+  const isMobile = flightBounds.isMobile;
+  const isPortrait = flightBounds.isMobilePortrait;
+  const ringScale = isPortrait ? 0.65 : isMobile ? 0.8 : 1.0;
+
   return (
     <group ref={waveGroupRef} position={[0, 0, zPosRef.current]}>
       {/* Decorative Challenge Stage Sky Arch */}
       <mesh position={[0, 0, -5]}>
-        <torusGeometry args={[12, 0.15, 12, 48]} />
+        <torusGeometry args={[isPortrait ? 7.5 : 12, 0.15, 12, 48]} />
         <meshBasicMaterial
           color={
             activeChallengeId === 'exam'
@@ -355,9 +372,18 @@ export const ChallengeStageDirector: React.FC<ChallengeStageDirectorProps> = ({
       </mesh>
 
       {/* Question / Prompt Banner */}
-      <Html position={[0, 5.2, 0]} center distanceFactor={28} zIndexRange={[10, 0]}>
-        <div className="pointer-events-none select-none w-96 md:w-[480px] px-5 py-2.5 rounded-2xl bg-slate-950/92 border-2 border-amber-400 text-center shadow-2xl">
-          <div className="text-sm md:text-base font-extrabold text-amber-200">
+      <Html
+        position={[0, isMobile ? 3.8 : 5.2, 0]}
+        center
+        distanceFactor={isMobile ? 34 : 28}
+        zIndexRange={[10, 0]}
+      >
+        <div
+          className={`pointer-events-none select-none rounded-2xl bg-slate-950/92 border-2 border-amber-400 text-center shadow-2xl ${
+            isPortrait ? 'w-72 px-3 py-1.5' : 'w-96 md:w-[480px] px-5 py-2.5'
+          }`}
+        >
+          <div className="text-xs md:text-base font-extrabold text-amber-200 leading-snug">
             {activeWave.questionText}
           </div>
         </div>
@@ -365,7 +391,7 @@ export const ChallengeStageDirector: React.FC<ChallengeStageDirectorProps> = ({
 
       {/* Items / Gates in the Wave */}
       {activeWave.items.map((item, idx) => (
-        <group key={idx} position={[item.x, item.y, 0]}>
+        <group key={idx} position={[item.x, item.y, 0]} scale={ringScale}>
           {item.isHazard ? (
             <mesh>
               <dodecahedronGeometry args={[2.2]} />
@@ -397,9 +423,18 @@ export const ChallengeStageDirector: React.FC<ChallengeStageDirectorProps> = ({
             </group>
           )}
 
-          <Html position={[0, 0, 0]} center distanceFactor={26} zIndexRange={[10, 0]}>
+          <Html
+            position={[0, isPortrait && idx === 1 ? -1.4 : 0, 0]}
+            center
+            distanceFactor={isMobile ? 32 : 26}
+            zIndexRange={[10, 0]}
+          >
             <div
-              className="pointer-events-none select-none px-4 py-2 rounded-xl font-black text-sm md:text-base text-white shadow-xl border whitespace-nowrap"
+              className={`pointer-events-none select-none rounded-xl font-black text-white shadow-xl border ${
+                isPortrait
+                  ? 'px-2 py-1 text-[10px] max-w-[130px] text-center leading-tight'
+                  : 'px-4 py-2 text-xs md:text-base whitespace-nowrap'
+              }`}
               style={{
                 backgroundColor: item.isHazard
                   ? 'rgba(127, 29, 29, 0.92)'

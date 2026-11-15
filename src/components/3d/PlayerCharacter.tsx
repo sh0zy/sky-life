@@ -2,6 +2,7 @@ import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '../../store/useGameStore';
+import { clampPlayerToCameraFrustum } from '../../utils/viewportFlightBounds';
 
 interface PlayerCharacterProps {
   playerPosRef: React.MutableRefObject<THREE.Vector3>;
@@ -97,33 +98,73 @@ export const PlayerCharacter: React.FC<PlayerCharacterProps> = ({ playerPosRef }
     const dt = Math.min(delta, 0.05);
 
     const store = useGameStore.getState();
+    const bounds = store.flightBounds;
     const isMovingAllowed =
       store.phase === 'PLAYING' || store.phase === 'CHALLENGE_PLAYING';
 
-    const targetVelX = isMovingAllowed ? store.inputVector.x * 13.5 : 0;
-    const targetVelY = isMovingAllowed ? store.inputVector.y * 10.5 : 0;
+    // Separate PC vs Mobile sensitivity & scale velocity with screen frustum width
+    const isTouchOrMobile = bounds.isMobile || store.inputSource === 'touch';
+    const sensitivity = isTouchOrMobile ? store.mobileSensitivity : store.pcSensitivity;
+    const portraitWidthScale = bounds.isMobilePortrait ? 0.72 : bounds.isMobileLandscape ? 0.88 : 1.0;
+    const portraitHeightScale = bounds.isMobilePortrait ? 0.82 : bounds.isMobileLandscape ? 0.88 : 1.0;
 
-    // Smooth inertia
-    velocityRef.current.x = THREE.MathUtils.lerp(velocityRef.current.x, targetVelX, dt * 7.5);
-    velocityRef.current.y = THREE.MathUtils.lerp(velocityRef.current.y, targetVelY, dt * 7.5);
+    const maxSpeedX = 13.5 * sensitivity * portraitWidthScale;
+    const maxSpeedY = 10.5 * sensitivity * portraitHeightScale;
+
+    const targetVelX = isMovingAllowed ? store.inputVector.x * maxSpeedX : 0;
+    const targetVelY = isMovingAllowed ? store.inputVector.y * maxSpeedY : 0;
+
+    // Frame-rate independent smooth acceleration & crisp deceleration on release (no excessive inertia)
+    const hasInputX = Math.abs(store.inputVector.x) > 0.001;
+    const hasInputY = Math.abs(store.inputVector.y) > 0.001;
+    const dampX = 1 - Math.exp(-(hasInputX ? 10.0 : 16.5) * dt);
+    const dampY = 1 - Math.exp(-(hasInputY ? 10.0 : 16.5) * dt);
+
+    velocityRef.current.x = THREE.MathUtils.lerp(velocityRef.current.x, targetVelX, dampX);
+    velocityRef.current.y = THREE.MathUtils.lerp(velocityRef.current.y, targetVelY, dampY);
+
+    if (!hasInputX && Math.abs(velocityRef.current.x) < 0.05) velocityRef.current.x = 0;
+    if (!hasInputY && Math.abs(velocityRef.current.y) < 0.05) velocityRef.current.y = 0;
 
     if (isMovingAllowed) {
-      playerPosRef.current.x = THREE.MathUtils.clamp(
-        playerPosRef.current.x + velocityRef.current.x * dt,
-        -8.5,
-        8.5
+      playerPosRef.current.x += velocityRef.current.x * dt;
+      playerPosRef.current.y += velocityRef.current.y * dt;
+
+      // Clamp to dynamic frustum bounds AND verify with actual Three.js Camera matrices
+      clampPlayerToCameraFrustum(
+        playerPosRef.current,
+        state.camera,
+        bounds,
+        stageConfig.scale
       );
-      playerPosRef.current.y = THREE.MathUtils.clamp(
-        playerPosRef.current.y + velocityRef.current.y * dt,
-        -3.5,
-        5.5
-      );
+
+      // Zero outward velocity if touching boundary so reversing direction is instant
+      if (
+        (playerPosRef.current.x <= bounds.minX + 0.01 && velocityRef.current.x < 0) ||
+        (playerPosRef.current.x >= bounds.maxX - 0.01 && velocityRef.current.x > 0)
+      ) {
+        velocityRef.current.x = 0;
+      }
+      if (
+        (playerPosRef.current.y <= bounds.minY + 0.01 && velocityRef.current.y < 0) ||
+        (playerPosRef.current.y >= bounds.maxY - 0.01 && velocityRef.current.y > 0)
+      ) {
+        velocityRef.current.y = 0;
+      }
     } else if (store.phase === 'TITLE' || store.phase === 'BIRTH_SELECT' || store.phase === 'BIRTH_INTRO') {
-      playerPosRef.current.x = THREE.MathUtils.lerp(playerPosRef.current.x, 0, dt * 3);
+      playerPosRef.current.x = THREE.MathUtils.lerp(playerPosRef.current.x, 0, 1 - Math.exp(-3 * dt));
       playerPosRef.current.y = THREE.MathUtils.lerp(
         playerPosRef.current.y,
         Math.sin(state.clock.elapsedTime * 2) * 0.45,
-        dt * 3
+        1 - Math.exp(-3 * dt)
+      );
+    } else {
+      // Even while paused or in a modal, ensure player remains clamped if viewport rotated/resized
+      clampPlayerToCameraFrustum(
+        playerPosRef.current,
+        state.camera,
+        bounds,
+        stageConfig.scale
       );
     }
 

@@ -81,9 +81,12 @@ export const ScreenOverlays: React.FC = () => {
   const history = useGameStore((s) => s.history);
   const soundEnabled = useGameStore((s) => s.soundEnabled);
   const pastRecords = useGameStore((s) => s.pastRecords);
+  const mobileSheet = useGameStore((s) => s.mobileSheet);
+  const mobileSensitivity = useGameStore((s) => s.mobileSensitivity);
 
   const setDifficulty = useGameStore((s) => s.setDifficulty);
   const setSchedulerWeights = useGameStore((s) => s.setSchedulerWeights);
+  const setMobileSensitivity = useGameStore((s) => s.setMobileSensitivity);
   const updateCountryParams = useGameStore((s) => s.updateCountryParams);
   const resetCountryParams = useGameStore((s) => s.resetCountryParams);
   const startNewGameSelect = useGameStore((s) => s.startNewGameSelect);
@@ -590,6 +593,35 @@ export const ScreenOverlays: React.FC = () => {
                 </button>
               </div>
 
+              <div className="glass-card p-4 rounded-2xl space-y-2 border border-sky-400/20">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-extrabold text-sky-300">
+                      📱 スマホ・タッチ操作の移動感度（PC比: {Math.round(mobileSensitivity * 100)}%）
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      初期推奨値: 56%（デッドゾーン 10%・滑らか加減速）
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMobileSensitivity(0.56)}
+                    className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold"
+                  >
+                    初期値(56%)に戻す
+                  </button>
+                </div>
+                <input
+                  type="range"
+                  min={0.3}
+                  max={1.0}
+                  step={0.02}
+                  value={mobileSensitivity}
+                  onChange={(e) => setMobileSensitivity(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-800 rounded-lg cursor-pointer accent-sky-400"
+                />
+              </div>
+
               {renderSchedulerSliders()}
               {renderCountryDebugEditor()}
             </div>
@@ -950,8 +982,8 @@ export const ScreenOverlays: React.FC = () => {
       : [activeChoiceEvent.leftChoice, activeChoiceEvent.rightChoice];
 
     return (
-      <div className="fixed inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
-        <div className="glass-panel max-w-2xl w-full rounded-3xl p-6 md:p-8 shadow-2xl border-2 border-amber-400">
+      <div className="fixed inset-0 z-30 flex items-center justify-center p-3 md:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
+        <div className="glass-panel max-w-2xl w-full rounded-3xl p-5 md:p-8 shadow-2xl border-2 border-amber-400 max-h-[92vh] overflow-y-auto my-auto">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-black uppercase">
             <AlertTriangle className="w-4 h-4" />
             人生の必須選択（回避不可）
@@ -998,9 +1030,9 @@ export const ScreenOverlays: React.FC = () => {
   if ((phase === 'FORCED_EVENT_MODAL' || phase === 'RECOVERY_MODAL') && activeObstacle) {
     const isForced = phase === 'FORCED_EVENT_MODAL' || activeObstacle.unavoidable;
     return (
-      <div className="fixed inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+      <div className="fixed inset-0 z-30 flex items-center justify-center p-3 md:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
         <div
-          className={`glass-panel max-w-2xl w-full rounded-3xl p-6 md:p-8 shadow-2xl border-2 ${
+          className={`glass-panel max-w-2xl w-full rounded-3xl p-5 md:p-8 shadow-2xl border-2 max-h-[92vh] overflow-y-auto my-auto ${
             isForced ? 'border-amber-400/70' : 'border-rose-400/60'
           }`}
         >
@@ -1175,13 +1207,15 @@ export const ScreenOverlays: React.FC = () => {
 
   // ==================== 7. PAUSE, COUNTRY DEBUG, SCHEDULER DEBUG & HISTORY MODAL ====================
   if (phase === 'PAUSED') {
+    if (mobileSheet !== 'none') return null;
+
     return (
-      <div className="fixed inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-        <div className="glass-panel max-w-4xl w-full rounded-3xl p-6 md:p-8 shadow-2xl max-h-[92vh] flex flex-col">
+      <div className="fixed inset-0 z-30 flex items-center justify-center p-3 md:p-4 bg-slate-950/80 backdrop-blur-md">
+        <div className="glass-panel max-w-4xl w-full rounded-3xl p-4 sm:p-6 md:p-8 shadow-2xl max-h-[92vh] flex flex-col">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/15 pb-3">
-            <h2 className="text-xl md:text-2xl font-black text-white flex items-center gap-2">
-              <History className="w-6 h-6 text-sky-400" />
-              ポーズ ／ 国別環境・スケジューラーデバッグ ／ 選択履歴
+            <h2 className="text-lg md:text-2xl font-black text-white flex items-center gap-2">
+              <History className="w-5 h-5 md:w-6 md:h-6 text-sky-400" />
+              ポーズ ／ 設定・デバッグ ／ 選択履歴
             </h2>
             <div className="flex items-center gap-2">
               <select
@@ -1204,7 +1238,36 @@ export const ScreenOverlays: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto my-4 space-y-4 pr-1">
+          <div className="flex-1 overflow-y-auto my-3 md:my-4 space-y-4 pr-1">
+            <div className="glass-card p-3.5 rounded-2xl space-y-2 border border-sky-400/20 text-left">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-extrabold text-sky-300">
+                    📱 スマホ・タッチ移動感度（PC比: {Math.round(mobileSensitivity * 100)}%）
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    デッドゾーン 10% ／ スティック操作に対する移動スピードを調整します
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileSensitivity(0.56)}
+                  className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold"
+                >
+                  初期値(56%)に戻す
+                </button>
+              </div>
+              <input
+                type="range"
+                min={0.3}
+                max={1.0}
+                step={0.02}
+                value={mobileSensitivity}
+                onChange={(e) => setMobileSensitivity(Number(e.target.value))}
+                className="w-full h-2 bg-slate-800 rounded-lg cursor-pointer accent-sky-400"
+              />
+            </div>
+
             {renderSchedulerSliders()}
             {renderCountryDebugEditor()}
 

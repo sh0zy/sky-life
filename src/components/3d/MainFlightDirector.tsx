@@ -11,6 +11,7 @@ import {
   ChoiceOption,
   ObstaclePatternType,
 } from '../../types/game';
+import { SafeFlightBounds } from '../../utils/viewportFlightBounds';
 
 interface MainFlightDirectorProps {
   playerPosRef: React.MutableRefObject<THREE.Vector3>;
@@ -51,13 +52,15 @@ type EncounterData =
     };
 
 /**
- * Generates multi-obstacle 3D formations based on difficulty & chapter
- * so players must actively maneuver up/down/left/right while keeping a fair dodge path.
+ * Generates multi-obstacle 3D formations scaled dynamically to the current screen's
+ * `SafeFlightBounds` so players on both PC and smartphones (portrait & landscape)
+ * always have a fair, reachable dodge corridor within their movable range.
  */
 function buildAvoidableFormation(
   difficulty: 'EASY' | 'NORMAL' | 'HARD',
   chapter: number,
-  lifeDifficultyIndex = 45
+  lifeDifficultyIndex = 45,
+  bounds: SafeFlightBounds
 ): { pattern: ObstaclePatternType; nodes: ObstacleHazardNode[] } {
   const isHighEnvChallenge = lifeDifficultyIndex >= 55;
   const patterns: ObstaclePatternType[] =
@@ -73,24 +76,35 @@ function buildAvoidableFormation(
 
   const pattern = patterns[Math.floor(Math.random() * patterns.length)];
   const envSpeedFactor = 0.92 + (lifeDifficultyIndex / 100) * 0.22;
+  const mobileSpeedEase = bounds.isMobilePortrait ? 0.78 : bounds.isMobileLandscape ? 0.88 : 1.0;
   const speedScale =
     (difficulty === 'HARD' ? 1.35 : difficulty === 'EASY' ? 0.75 : 1.0) *
     (1 + chapter * 0.08) *
-    envSpeedFactor;
+    envSpeedFactor *
+    mobileSpeedEase;
+
+  // Scale obstacle positions and radii proportionally to the player's actual movable corridor
+  const scaleX = bounds.corridorHalfWidth / 8.5;
+  const centerY = (bounds.minY + bounds.maxY) * 0.5;
+  const halfSpanY = Math.max(1.6, (bounds.maxY - bounds.minY) * 0.5);
+  const scaleY = halfSpanY / 4.5;
+  // Slightly tighter hit radius on narrow mobile screens so fair dodge paths are always preserved
+  const rScaleX = bounds.isMobilePortrait ? scaleX * 0.84 : bounds.isMobileLandscape ? scaleX * 0.9 : scaleX;
+  const rScaleY = bounds.isMobile ? scaleY * 0.86 : scaleY;
 
   if (pattern === 'single_moving') {
     return {
       pattern,
       nodes: [
         {
-          baseX: (Math.random() - 0.5) * 4,
-          baseY: (Math.random() - 0.5) * 2,
-          radiusX: 3.1,
-          radiusY: 2.3,
-          moveSpeedX: 1.8 * speedScale,
-          moveAmpX: 3.2,
+          baseX: (Math.random() - 0.5) * 3.6 * scaleX,
+          baseY: centerY + (Math.random() - 0.5) * 1.8 * scaleY,
+          radiusX: 3.0 * rScaleX,
+          radiusY: 2.2 * rScaleY,
+          moveSpeedX: 1.7 * speedScale,
+          moveAmpX: 3.0 * scaleX,
           moveSpeedY: 1.1 * speedScale,
-          moveAmpY: 1.2,
+          moveAmpY: 1.1 * scaleY,
           phaseOffset: Math.random() * Math.PI * 2,
         },
       ],
@@ -98,56 +112,56 @@ function buildAvoidableFormation(
   }
 
   if (pattern === 'horizontal_pair') {
-    // Two large hazards leaving either the center or outer edges open, plus vertical room
+    // Two hazards leaving either the center or outer edges open, plus vertical room
     const gapCenter = Math.random() > 0.5;
     return {
       pattern,
       nodes: gapCenter
         ? [
             {
-              baseX: -5.4,
-              baseY: 0.4,
-              radiusX: 3.0,
-              radiusY: 2.5,
+              baseX: -5.5 * scaleX,
+              baseY: centerY + 0.35 * scaleY,
+              radiusX: 2.85 * rScaleX,
+              radiusY: 2.35 * rScaleY,
               moveSpeedX: 0.9 * speedScale,
-              moveAmpX: 1.0,
-              moveSpeedY: 1.4 * speedScale,
-              moveAmpY: 1.4,
+              moveAmpX: 0.85 * scaleX,
+              moveSpeedY: 1.3 * speedScale,
+              moveAmpY: 1.2 * scaleY,
               phaseOffset: 0,
             },
             {
-              baseX: 5.4,
-              baseY: -0.4,
-              radiusX: 3.0,
-              radiusY: 2.5,
+              baseX: 5.5 * scaleX,
+              baseY: centerY - 0.35 * scaleY,
+              radiusX: 2.85 * rScaleX,
+              radiusY: 2.35 * rScaleY,
               moveSpeedX: 0.9 * speedScale,
-              moveAmpX: 1.0,
-              moveSpeedY: 1.4 * speedScale,
-              moveAmpY: 1.4,
+              moveAmpX: 0.85 * scaleX,
+              moveSpeedY: 1.3 * speedScale,
+              moveAmpY: 1.2 * scaleY,
               phaseOffset: Math.PI,
             },
           ]
         : [
             {
-              baseX: -2.4,
-              baseY: 1.2,
-              radiusX: 2.9,
-              radiusY: 2.2,
-              moveSpeedX: 1.2 * speedScale,
-              moveAmpX: 1.2,
+              baseX: -2.4 * scaleX,
+              baseY: centerY + 1.25 * scaleY,
+              radiusX: 2.75 * rScaleX,
+              radiusY: 2.0 * rScaleY,
+              moveSpeedX: 1.1 * speedScale,
+              moveAmpX: 1.0 * scaleX,
               moveSpeedY: 0.8 * speedScale,
-              moveAmpY: 0.8,
+              moveAmpY: 0.7 * scaleY,
               phaseOffset: 0.5,
             },
             {
-              baseX: 3.4,
-              baseY: -1.4,
-              radiusX: 2.9,
-              radiusY: 2.2,
-              moveSpeedX: 1.2 * speedScale,
-              moveAmpX: 1.2,
+              baseX: 3.3 * scaleX,
+              baseY: centerY - 1.35 * scaleY,
+              radiusX: 2.75 * rScaleX,
+              radiusY: 2.0 * rScaleY,
+              moveSpeedX: 1.1 * speedScale,
+              moveAmpX: 1.0 * scaleX,
               moveSpeedY: 0.8 * speedScale,
-              moveAmpY: 0.8,
+              moveAmpY: 0.7 * scaleY,
               phaseOffset: 2.2,
             },
           ],
@@ -155,31 +169,32 @@ function buildAvoidableFormation(
   }
 
   if (pattern === 'vertical_split') {
-    // Upper or lower barrier requiring vertical climb or dive
+    // Upper or lower barrier leaving the opposite vertical half clearly open
     const blockTop = Math.random() > 0.5;
+    const offsetY = blockTop ? halfSpanY * 0.48 : -halfSpanY * 0.48;
     return {
       pattern,
       nodes: [
         {
-          baseX: -3.2,
-          baseY: blockTop ? 2.4 : -1.8,
-          radiusX: 3.8,
-          radiusY: 2.2,
+          baseX: -3.2 * scaleX,
+          baseY: centerY + offsetY,
+          radiusX: 3.6 * rScaleX,
+          radiusY: 1.95 * rScaleY,
           moveSpeedX: 0.8 * speedScale,
-          moveAmpX: 1.2,
+          moveAmpX: 1.0 * scaleX,
           moveSpeedY: 0.6 * speedScale,
-          moveAmpY: 0.5,
+          moveAmpY: 0.35 * scaleY,
           phaseOffset: 0,
         },
         {
-          baseX: 3.2,
-          baseY: blockTop ? 2.4 : -1.8,
-          radiusX: 3.8,
-          radiusY: 2.2,
+          baseX: 3.2 * scaleX,
+          baseY: centerY + offsetY,
+          radiusX: 3.6 * rScaleX,
+          radiusY: 1.95 * rScaleY,
           moveSpeedX: 0.8 * speedScale,
-          moveAmpX: 1.2,
+          moveAmpX: 1.0 * scaleX,
           moveSpeedY: 0.6 * speedScale,
-          moveAmpY: 0.5,
+          moveAmpY: 0.35 * scaleY,
           phaseOffset: Math.PI,
         },
       ],
@@ -191,36 +206,36 @@ function buildAvoidableFormation(
     pattern,
     nodes: [
       {
-        baseX: -5.6,
-        baseY: 2.2,
-        radiusX: 2.6,
-        radiusY: 2.0,
-        moveSpeedX: 1.1 * speedScale,
-        moveAmpX: 1.1,
-        moveSpeedY: 1.1 * speedScale,
-        moveAmpY: 0.9,
+        baseX: -5.6 * scaleX,
+        baseY: centerY + 1.8 * scaleY,
+        radiusX: 2.45 * rScaleX,
+        radiusY: 1.85 * rScaleY,
+        moveSpeedX: 1.05 * speedScale,
+        moveAmpX: 0.95 * scaleX,
+        moveSpeedY: 1.05 * speedScale,
+        moveAmpY: 0.8 * scaleY,
         phaseOffset: 0,
       },
       {
         baseX: 0,
-        baseY: -1.8,
-        radiusX: 2.7,
-        radiusY: 2.0,
-        moveSpeedX: 1.4 * speedScale,
-        moveAmpX: 1.5,
-        moveSpeedY: 1.0 * speedScale,
-        moveAmpY: 0.9,
+        baseY: centerY - 1.7 * scaleY,
+        radiusX: 2.5 * rScaleX,
+        radiusY: 1.85 * rScaleY,
+        moveSpeedX: 1.3 * speedScale,
+        moveAmpX: 1.25 * scaleX,
+        moveSpeedY: 0.95 * speedScale,
+        moveAmpY: 0.8 * scaleY,
         phaseOffset: 1.8,
       },
       {
-        baseX: 5.6,
-        baseY: 2.0,
-        radiusX: 2.6,
-        radiusY: 2.0,
-        moveSpeedX: 1.1 * speedScale,
-        moveAmpX: 1.1,
-        moveSpeedY: 1.1 * speedScale,
-        moveAmpY: 0.9,
+        baseX: 5.6 * scaleX,
+        baseY: centerY + 1.7 * scaleY,
+        radiusX: 2.45 * rScaleX,
+        radiusY: 1.85 * rScaleY,
+        moveSpeedX: 1.05 * speedScale,
+        moveAmpX: 0.95 * scaleX,
+        moveSpeedY: 1.05 * speedScale,
+        moveAmpY: 0.8 * scaleY,
         phaseOffset: 3.4,
       },
     ],
@@ -239,16 +254,19 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
   const [hoveredGateIndex, setHoveredGateIndex] = useState<number>(0);
 
   const phase = useGameStore((s) => s.phase);
+  const flightBounds = useGameStore((s) => s.flightBounds);
 
   const spawnNextEncounter = () => {
     const store = useGameStore.getState();
     const age = store.age;
     const chapter = store.chapter;
     const weights = store.schedulerWeights;
+    const bounds = store.flightBounds;
 
-    //Spawn distance adjusted by difficulty so players have ample time to read options from afar
-    const startZ =
+    // Spawn distance adjusted by difficulty & device so players have ample time to read options from afar
+    const baseStartZ =
       store.difficulty === 'EASY' ? -125 : store.difficulty === 'HARD' ? -105 : -115;
+    const startZ = bounds.isMobile ? baseStartZ - 6 : baseStartZ;
 
     // 1. Check Turning Point Challenge Portals first
     if (age >= 15.5 && !store.triggeredChallengeIds.includes('exam')) {
@@ -316,7 +334,6 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
     }
 
     // 3. Event Scheduler using configurable weights (A: 40%, B: 20%, C: 25%, D: 15% default)
-    // Strictly preserve base category ratios! Country & social environment change the event content/conditions within each category.
     const effMandatory = Math.max(0, weights.mandatoryChoice);
     const effForced = age < 3 ? 0 : Math.max(0, weights.forcedEvent);
     const effAvoidable =
@@ -359,7 +376,6 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
       const tagMatched = forcedPool.find(
         (o) => o.triggerTag && store.tags.includes(o.triggerTag)
       );
-      // Prefer medical cost crisis if country has high medicalCostBurden or low medicalAccess
       const envMatched = forcedPool.find(
         (o) =>
           !store.usedObstacleIds.includes(o.id) &&
@@ -395,7 +411,6 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
           !store.recentEncounterIds.includes(o.id)
       );
 
-      // Prefer environment-driven obstacle when structural barrier is relevant
       const envObstacle = avoidablePool.find(
         (o) =>
           !store.usedObstacleIds.includes(o.id) &&
@@ -418,7 +433,8 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
       const formation = buildAvoidableFormation(
         store.difficulty,
         chapter,
-        store.lifeDifficultyIndex
+        store.lifeDifficultyIndex,
+        bounds
       );
       prevZRef.current = startZ;
       zPosRef.current = startZ;
@@ -437,7 +453,6 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
     const isCountryEligible = (ev: LifeEventDef) =>
       !ev.countries || ev.countries.includes(countryId);
 
-    // 1st priority: Unused Country-Specific Event or Structural Barrier Support Event for current chapter!
     const needsEduSupport =
       !store.tags.includes('scholarship_secured') &&
       (store.tags.includes('low_income_household') ||
@@ -531,6 +546,8 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
       return;
     }
 
+    const bounds = store.flightBounds;
+
     // Speed scales with difficulty so EASY gives longer reading time and HARD is brisk
     const diffSpeedMult =
       store.difficulty === 'EASY' ? 0.82 : store.difficulty === 'HARD' ? 1.18 : 1.0;
@@ -544,11 +561,22 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
       encounterGroupRef.current.position.z = zPosRef.current;
     }
 
+    // Dynamic gate split threshold matched 100% to current screen's corridorHalfWidth!
+    const splitX = bounds.corridorHalfWidth * 0.335;
+
     // Update live highlighted gate index based on player's X position so visual & collision match 100%
     if (currentEncounter.type === 'choice') {
       const px = playerPosRef.current.x;
       const hasCenter = Boolean(currentEncounter.event.centerChoice);
-      const nextIdx = hasCenter ? (px < -2.85 ? 0 : px <= 2.85 ? 1 : 2) : px <= 0 ? 0 : 1;
+      const nextIdx = hasCenter
+        ? px < -splitX
+          ? 0
+          : px <= splitX
+          ? 1
+          : 2
+        : px <= 0
+        ? 0
+        : 1;
       if (nextIdx !== hoveredGateIndex) {
         setHoveredGateIndex(nextIdx);
       }
@@ -580,8 +608,6 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
     }
 
     // ==================== SWEPT Z-CROSSING COLLISION & ANTI-BYPASS SYSTEM ====================
-    // Swept check: triggers as soon as [prevZ, zPos] crosses the Z = 0 player plane (or enters [-1.5, 2.5]).
-    // Even at maximum boost speed, a frame can NEVER tunnel past Z = 0 without resolving!
     const crossedPlayerPlane =
       (prevZRef.current < 0 && zPosRef.current >= 0) ||
       (zPosRef.current >= -1.5 && zPosRef.current <= 2.5);
@@ -595,9 +621,13 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
         const ev = currentEncounter.event;
         const hasCenter = Boolean(ev.centerChoice);
 
-        // Full-sky partition: X in [-8.5, +8.5] and Y in [-3.5, +5.5] are 100% partitioned with zero gaps.
-        // If player is somehow outside normal bounds (failsafe), open the Failsafe Selection Modal!
-        if (!Number.isFinite(px) || !Number.isFinite(py) || Math.abs(px) > 9.5 || Math.abs(py) > 6.5) {
+        // Full-sky partition: entire movable range [-corridorHalfWidth, +corridorHalfWidth] is covered with zero gaps.
+        if (
+          !Number.isFinite(px) ||
+          !Number.isFinite(py) ||
+          Math.abs(px) > bounds.corridorHalfWidth + 1.5 ||
+          Math.abs(py) > 6.5
+        ) {
           setCurrentEncounter(null);
           cooldownRef.current = 1.2;
           store.triggerChoiceFailsafe(ev);
@@ -606,9 +636,9 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
 
         let chosenOption: ChoiceOption;
         if (hasCenter && ev.centerChoice) {
-          if (px < -2.85) {
+          if (px < -splitX) {
             chosenOption = ev.leftChoice;
-          } else if (px <= 2.85) {
+          } else if (px <= splitX) {
             chosenOption = ev.centerChoice;
           } else {
             chosenOption = ev.rightChoice;
@@ -633,7 +663,6 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
       }
 
       if (currentEncounter.type === 'forced_event') {
-        // Type B Forced Event: unavoidable regardless of player X/Y or difficulty
         resolvedCurrentRef.current = true;
         const obs = currentEncounter.obstacle;
         setCurrentEncounter(null);
@@ -643,7 +672,6 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
       }
 
       if (currentEncounter.type === 'avoidable_obstacle') {
-        // Type C Avoidable Obstacle: check against each moving 3D hazard node's current visual position
         const t = state.clock.elapsedTime;
         let hitDetected = false;
 
@@ -713,53 +741,73 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
       : [ev.leftChoice, ev.rightChoice];
 
     const isThree = options.length === 3;
-    // Full sky width [-9.6, +9.6] and height [-5.2, +6.8] covered with zero gaps!
-    const gateWidth = isThree ? 6.2 : 9.4;
-    const gateHeight = 11.6;
-    const xPositions = isThree ? [-6.3, 0, 6.3] : [-4.75, 4.75];
+    const halfW = flightBounds.corridorHalfWidth;
+    const isMobile = flightBounds.isMobile;
+    const isPortrait = flightBounds.isMobilePortrait;
+
+    // Gate widths and positions dynamically span [-halfW * 1.1, +halfW * 1.1] so visual pillars
+    // align with the exact selection thresholds (`±halfW * 0.335` for 3 choices, `0` for 2 choices).
+    const gateWidth = isThree ? halfW * 0.67 : halfW * 1.04;
+    const gateHeight = isMobile ? 9.6 : 11.6;
+    const xPositions = isThree
+      ? [-halfW * 0.67, 0, halfW * 0.67]
+      : [-halfW * 0.52, halfW * 0.52];
+    const totalBarrierWidth = halfW * 2.35;
+    const headerY = isMobile ? 4.8 : 6.9;
+    const distFactor = isPortrait ? 38 : isMobile ? 35 : 34;
 
     return (
       <group>
         {/* Top & Bottom Energy Barrier Beams sealing the entire sky corridor */}
-        <mesh position={[0, 6.6, 0]}>
-          <boxGeometry args={[20.5, 0.45, 0.6]} />
+        <mesh position={[0, isMobile ? 5.2 : 6.6, 0]}>
+          <boxGeometry args={[totalBarrierWidth, 0.4, 0.6]} />
           <meshStandardMaterial color="#38bdf8" emissive="#0284c7" emissiveIntensity={0.8} />
         </mesh>
-        <mesh position={[0, -4.9, 0]}>
-          <boxGeometry args={[20.5, 0.45, 0.6]} />
+        <mesh position={[0, isMobile ? -3.8 : -4.9, 0]}>
+          <boxGeometry args={[totalBarrierWidth, 0.4, 0.6]} />
           <meshStandardMaterial color="#38bdf8" emissive="#0284c7" emissiveIntensity={0.8} />
         </mesh>
 
         {/* Event Category & Title Header */}
-        <Html position={[0, 6.9, 0]} center distanceFactor={34} zIndexRange={[10, 0]}>
-          <div className="pointer-events-none select-none whitespace-nowrap px-6 py-2 rounded-full bg-slate-950/92 border-2 border-sky-400/70 text-center shadow-2xl">
-            <div className="text-xs font-black tracking-widest text-amber-300 uppercase">
+        <Html position={[0, headerY, 0]} center distanceFactor={distFactor} zIndexRange={[10, 0]}>
+          <div
+            className={`pointer-events-none select-none rounded-full bg-slate-950/92 border-2 border-sky-400/70 text-center shadow-2xl ${
+              isMobile ? 'px-3.5 py-1 max-w-[290px]' : 'whitespace-nowrap px-6 py-2'
+            }`}
+          >
+            <div className="text-[10px] md:text-xs font-black tracking-wider text-amber-300 uppercase truncate">
               {ev.kind === 'chance_risk'
-                ? '🎲 D. チャンスとリスクの決断（回避不可・いずれかを選択）'
-                : '⚖️ A. 人生の必須選択ゲート（回避不可・いずれかを選択）'}
+                ? '🎲 D. チャンスとリスク（回避不可）'
+                : '⚖️ A. 必須選択ゲート（回避不可）'}
             </div>
-            <div className="text-lg md:text-2xl font-black text-white mt-0.5">{ev.title}</div>
+            <div className="text-sm md:text-2xl font-black text-white mt-0.5 leading-tight">
+              {ev.title}
+            </div>
           </div>
         </Html>
 
         {options.map((opt, idx) => {
           const isTargeted = hoveredGateIndex === idx;
           const xPos = xPositions[idx];
+          // On narrow portrait screens with 3 choices, slightly stagger the center card vertically
+          // so the 3 cards never overlap horizontally while remaining 100% readable!
+          const cardYOffset = isPortrait && isThree ? (idx === 1 ? 1.15 : -0.45) : 0;
+
           return (
-            <group key={opt.id} position={[xPos, 0.85, 0]}>
+            <group key={opt.id} position={[xPos, 0.7, 0]}>
               {/* Full-Height Rectangular Gate Frame covering the entire vertical & horizontal lane */}
               <mesh>
                 <boxGeometry args={[gateWidth, gateHeight, 0.35]} />
                 <meshBasicMaterial
                   color={opt.color}
                   transparent
-                  opacity={isTargeted ? 0.34 : 0.16}
+                  opacity={isTargeted ? 0.36 : 0.15}
                 />
               </mesh>
 
               {/* Glowing Gate Pillar Borders */}
               <mesh position={[-gateWidth / 2, 0, 0]}>
-                <boxGeometry args={[0.28, gateHeight, 0.5]} />
+                <boxGeometry args={[0.18, gateHeight, 0.45]} />
                 <meshStandardMaterial
                   color={opt.color}
                   emissive={opt.color}
@@ -767,7 +815,7 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
                 />
               </mesh>
               <mesh position={[gateWidth / 2, 0, 0]}>
-                <boxGeometry args={[0.28, gateHeight, 0.5]} />
+                <boxGeometry args={[0.18, gateHeight, 0.45]} />
                 <meshStandardMaterial
                   color={opt.color}
                   emissive={opt.color}
@@ -775,51 +823,96 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
                 />
               </mesh>
 
-              {/* High-Visibility Early Preview Card (Readable from far away!) */}
-              <Html position={[0, 0, 0]} center distanceFactor={34} zIndexRange={[10, 0]}>
-                <div
-                  className={`pointer-events-none select-none w-64 md:w-72 p-4 rounded-2xl text-center shadow-2xl border-2 transition-transform ${
-                    isTargeted ? 'scale-105 ring-4 ring-white/50' : 'opacity-90'
-                  }`}
-                  style={{
-                    backgroundColor: 'rgba(15, 23, 42, 0.94)',
-                    borderColor: opt.color,
-                  }}
-                >
-                  {isTargeted && (
-                    <div className="mb-1 inline-block px-3 py-0.5 rounded-full text-[11px] font-black bg-amber-400 text-slate-950">
-                      🎯 現在の進路（この選択肢へ突入）
+              {/* High-Visibility Early Preview Card (Adapted for Mobile vs PC) */}
+              <Html
+                position={[0, cardYOffset, 0]}
+                center
+                distanceFactor={distFactor}
+                zIndexRange={[10, 0]}
+              >
+                {isMobile ? (
+                  <div
+                    className={`pointer-events-none select-none rounded-xl text-center shadow-2xl border-2 transition-transform ${
+                      isPortrait
+                        ? isThree
+                          ? 'w-[106px] p-1.5'
+                          : 'w-[138px] p-2'
+                        : isThree
+                        ? 'w-[156px] p-2'
+                        : 'w-[190px] p-2.5'
+                    } ${isTargeted ? 'scale-105 ring-2 ring-amber-300' : 'opacity-85'}`}
+                    style={{
+                      backgroundColor: 'rgba(15, 23, 42, 0.94)',
+                      borderColor: opt.color,
+                    }}
+                  >
+                    {isTargeted && (
+                      <div className="mb-0.5 inline-block px-1.5 py-0.2 rounded-full text-[9px] font-black bg-amber-400 text-slate-950">
+                        🎯 進路中
+                      </div>
+                    )}
+                    <div className="text-lg leading-none mb-0.5">{opt.icon}</div>
+                    <div className="text-[11px] font-black text-white leading-tight line-clamp-2">
+                      {opt.label}
                     </div>
-                  )}
-                  <div className="text-3xl mb-1">{opt.icon}</div>
-                  <div className="text-base md:text-lg font-black text-white leading-snug">
-                    {opt.label}
+                    <div className="mt-1 space-y-0.5 text-left bg-slate-900/90 p-1 rounded-lg border border-white/10">
+                      <div className="text-[9px] font-bold text-emerald-300 leading-tight line-clamp-2">
+                        ⭕ {opt.prosText}
+                      </div>
+                      <div className="text-[9px] font-bold text-rose-300 leading-tight line-clamp-2">
+                        ⚠️ {opt.consText}
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-300 mt-0.5">{opt.subLabel}</div>
+                ) : (
+                  <div
+                    className={`pointer-events-none select-none w-64 md:w-72 p-4 rounded-2xl text-center shadow-2xl border-2 transition-transform ${
+                      isTargeted ? 'scale-105 ring-4 ring-white/50' : 'opacity-90'
+                    }`}
+                    style={{
+                      backgroundColor: 'rgba(15, 23, 42, 0.94)',
+                      borderColor: opt.color,
+                    }}
+                  >
+                    {isTargeted && (
+                      <div className="mb-1 inline-block px-3 py-0.5 rounded-full text-[11px] font-black bg-amber-400 text-slate-950">
+                        🎯 現在の進路（この選択肢へ突入）
+                      </div>
+                    )}
+                    <div className="text-3xl mb-1">{opt.icon}</div>
+                    <div className="text-base md:text-lg font-black text-white leading-snug">
+                      {opt.label}
+                    </div>
+                    <div className="text-xs text-slate-300 mt-0.5">{opt.subLabel}</div>
 
-                  {/* Pros & Cons Forecast */}
-                  <div className="mt-2.5 space-y-1 text-left bg-slate-900/90 p-2.5 rounded-xl border border-white/10">
-                    <div className="text-xs font-extrabold text-emerald-300 leading-tight">
-                      ⭕ メリット: {opt.prosText}
-                    </div>
-                    <div className="text-xs font-extrabold text-rose-300 leading-tight">
-                      ⚠️ 代償/リスク: {opt.consText}
-                    </div>
-                    {opt.riskBadge && (
-                      <div className="text-[11px] font-black text-amber-300 pt-0.5">
-                        {opt.riskBadge}
+                    {/* Pros & Cons Forecast */}
+                    <div className="mt-2.5 space-y-1 text-left bg-slate-900/90 p-2.5 rounded-xl border border-white/10">
+                      <div className="text-xs font-extrabold text-emerald-300 leading-tight">
+                        ⭕ メリット: {opt.prosText}
                       </div>
-                    )}
-                    {(opt.supportUsedLabel || opt.environmentDifficultyMod) && (
-                      <div className="text-[11px] font-black text-sky-300 pt-0.5">
-                        🏛️ {opt.supportUsedLabel || '社会環境変化'}{' '}
-                        {opt.environmentDifficultyMod
-                          ? `（環境難易度 ${opt.environmentDifficultyMod > 0 ? `+${opt.environmentDifficultyMod}` : opt.environmentDifficultyMod}）`
-                          : ''}
+                      <div className="text-xs font-extrabold text-rose-300 leading-tight">
+                        ⚠️ 代償/リスク: {opt.consText}
                       </div>
-                    )}
+                      {opt.riskBadge && (
+                        <div className="text-[11px] font-black text-amber-300 pt-0.5">
+                          {opt.riskBadge}
+                        </div>
+                      )}
+                      {(opt.supportUsedLabel || opt.environmentDifficultyMod) && (
+                        <div className="text-[11px] font-black text-sky-300 pt-0.5">
+                          🏛️ {opt.supportUsedLabel || '社会環境変化'}{' '}
+                          {opt.environmentDifficultyMod
+                            ? `（環境難易度 ${
+                                opt.environmentDifficultyMod > 0
+                                  ? `+${opt.environmentDifficultyMod}`
+                                  : opt.environmentDifficultyMod
+                              }）`
+                            : ''}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
               </Html>
             </group>
           );
@@ -845,18 +938,23 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
               roughness={0.3}
             />
           </mesh>
-          <Html position={[0, 1.5, 0]} center distanceFactor={34} zIndexRange={[10, 0]}>
-            <div className="pointer-events-none select-none w-80 md:w-96 p-5 rounded-3xl bg-rose-950/95 border-2 border-amber-400 text-center shadow-2xl">
-              <div className="text-xs font-black text-amber-300 uppercase tracking-widest">
+          <Html
+            position={[0, 1.5, 0]}
+            center
+            distanceFactor={flightBounds.isMobile ? 38 : 34}
+            zIndexRange={[10, 0]}
+          >
+            <div className="pointer-events-none select-none w-64 md:w-96 p-3.5 md:p-5 rounded-3xl bg-rose-950/95 border-2 border-amber-400 text-center shadow-2xl">
+              <div className="text-[10px] md:text-xs font-black text-amber-300 uppercase tracking-widest">
                 ⚡ {currentEncounter.obstacle.categoryLabel}（回避不可）
               </div>
-              <div className="text-xl md:text-2xl font-black text-white mt-1">
+              <div className="text-base md:text-2xl font-black text-white mt-1">
                 {currentEncounter.obstacle.title}
               </div>
-              <div className="text-xs md:text-sm text-rose-200 mt-1">
+              <div className="text-[11px] md:text-sm text-rose-200 mt-1">
                 {currentEncounter.obstacle.subtitle}
               </div>
-              <div className="mt-2 inline-block px-3 py-1 rounded-full text-xs font-bold bg-white/15 text-amber-200">
+              <div className="mt-1.5 inline-block px-2.5 py-0.5 rounded-full text-[10px] md:text-xs font-bold bg-white/15 text-amber-200">
                 到達時に飛行が一時停止し、対処方法を選択します
               </div>
             </div>
@@ -867,12 +965,17 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
       {/* ==================== 3. TYPE C: MULTI-NODE AVOIDABLE 3D OBSTACLES ==================== */}
       {currentEncounter.type === 'avoidable_obstacle' && (
         <group>
-          <Html position={[0, 6.2, 0]} center distanceFactor={34} zIndexRange={[10, 0]}>
-            <div className="pointer-events-none select-none w-80 p-3 rounded-2xl bg-slate-950/90 border-2 border-red-400 text-center shadow-2xl">
-              <div className="text-xs font-extrabold text-red-300 uppercase">
-                🌪️ {currentEncounter.obstacle.categoryLabel}（操作で隙間へ回避せよ！）
+          <Html
+            position={[0, flightBounds.isMobile ? 4.6 : 6.2, 0]}
+            center
+            distanceFactor={flightBounds.isMobile ? 38 : 34}
+            zIndexRange={[10, 0]}
+          >
+            <div className="pointer-events-none select-none w-64 md:w-80 p-2 md:p-3 rounded-2xl bg-slate-950/90 border-2 border-red-400 text-center shadow-2xl">
+              <div className="text-[10px] md:text-xs font-extrabold text-red-300 uppercase">
+                🌪️ {currentEncounter.obstacle.categoryLabel}（隙間へ回避せよ！）
               </div>
-              <div className="text-base md:text-lg font-black text-white mt-0.5">
+              <div className="text-xs md:text-lg font-black text-white mt-0.5">
                 {currentEncounter.obstacle.title}
               </div>
             </div>
@@ -908,7 +1011,7 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
       {currentEncounter.type === 'portal' && (
         <group position={[0, 0.5, 0]}>
           <mesh>
-            <torusGeometry args={[5.5, 0.45, 20, 60]} />
+            <torusGeometry args={[flightBounds.isMobilePortrait ? 3.4 : 5.5, 0.4, 20, 60]} />
             <meshStandardMaterial
               color="#fde047"
               emissive="#f59e0b"
@@ -916,7 +1019,7 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
             />
           </mesh>
           <mesh>
-            <circleGeometry args={[5.2, 40]} />
+            <circleGeometry args={[flightBounds.isMobilePortrait ? 3.2 : 5.2, 40]} />
             <meshBasicMaterial
               color="#38bdf8"
               transparent
@@ -924,15 +1027,20 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
               side={THREE.DoubleSide}
             />
           </mesh>
-          <Html position={[0, 0, 0]} center distanceFactor={30} zIndexRange={[10, 0]}>
-            <div className="pointer-events-none select-none w-80 p-4 rounded-3xl bg-indigo-950/90 border-2 border-amber-300 text-center shadow-2xl">
-              <div className="text-xs font-black tracking-widest text-amber-300 uppercase">
+          <Html
+            position={[0, 0, 0]}
+            center
+            distanceFactor={flightBounds.isMobile ? 35 : 30}
+            zIndexRange={[10, 0]}
+          >
+            <div className="pointer-events-none select-none w-64 md:w-80 p-3 md:p-4 rounded-3xl bg-indigo-950/90 border-2 border-amber-300 text-center shadow-2xl">
+              <div className="text-[10px] md:text-xs font-black tracking-widest text-amber-300 uppercase">
                 ✨ SPECIAL TURNING POINT ✨
               </div>
-              <div className="text-xl font-black text-white mt-1">
+              <div className="text-base md:text-xl font-black text-white mt-1">
                 {currentEncounter.title}
               </div>
-              <div className="text-sm text-sky-200 mt-1 font-bold">
+              <div className="text-xs md:text-sm text-sky-200 mt-1 font-bold">
                 「{currentEncounter.subtitle}」へ突入！
               </div>
             </div>

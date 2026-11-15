@@ -11,6 +11,7 @@ import {
 } from '../../utils/socialSimulation';
 import {
   Pause,
+  Play,
   Volume2,
   VolumeX,
   Heart,
@@ -23,10 +24,13 @@ import {
   Sliders,
   Globe,
   Building2,
+  BarChart3,
+  ScrollText,
+  X,
 } from 'lucide-react';
 import { StatDelta, CountryId, CountrySocialParams } from '../../types/game';
 
-const STAT_META = [
+export const STAT_META = [
   { key: 'happiness', label: '幸福度', icon: Smile, color: 'bg-amber-400', text: 'text-amber-300' },
   { key: 'health', label: '健康', icon: Heart, color: 'bg-emerald-400', text: 'text-emerald-300' },
   { key: 'money', label: 'お金', icon: Coins, color: 'bg-yellow-400', text: 'text-yellow-300' },
@@ -57,18 +61,23 @@ export const HUD: React.FC = () => {
   const lifeDifficultyIndex = useGameStore((s) => s.lifeDifficultyIndex);
   const environmentChangeLogs = useGameStore((s) => s.environmentChangeLogs);
   const utilizedSupports = useGameStore((s) => s.utilizedSupports);
+  const overcomeHardships = useGameStore((s) => s.overcomeHardships);
   const countryParamsMap = useGameStore((s) => s.countryParamsMap);
   const stats = useGameStore((s) => s.stats);
   const tags = useGameStore((s) => s.tags);
+  const career = useGameStore((s) => s.career);
+  const history = useGameStore((s) => s.history);
+  const completedChallenges = useGameStore((s) => s.completedChallenges);
   const feedbacks = useGameStore((s) => s.feedbacks);
   const soundEnabled = useGameStore((s) => s.soundEnabled);
   const challengeScore = useGameStore((s) => s.challengeScore);
   const challengeTargetScore = useGameStore((s) => s.challengeTargetScore);
   const challengeTimeLeft = useGameStore((s) => s.challengeTimeLeft);
-  const activeChallengeId = useGameStore((s) => s.activeChallengeId);
   const debugPanelOpen = useGameStore((s) => s.debugPanelOpen);
   const socialEnvPanelOpen = useGameStore((s) => s.socialEnvPanelOpen);
   const schedulerWeights = useGameStore((s) => s.schedulerWeights);
+  const flightBounds = useGameStore((s) => s.flightBounds);
+  const mobileSheet = useGameStore((s) => s.mobileSheet);
 
   const toggleSound = useGameStore((s) => s.toggleSound);
   const setPhase = useGameStore((s) => s.setPhase);
@@ -78,11 +87,11 @@ export const HUD: React.FC = () => {
   const setDifficulty = useGameStore((s) => s.setDifficulty);
   const updateCountryParams = useGameStore((s) => s.updateCountryParams);
   const resetCountryParams = useGameStore((s) => s.resetCountryParams);
+  const openMobileSheet = useGameStore((s) => s.openMobileSheet);
+  const closeMobileSheet = useGameStore((s) => s.closeMobileSheet);
 
   const [debugTab, setDebugTab] = useState<'scheduler' | 'country'>('scheduler');
   const [selectedDebugCountry, setSelectedDebugCountry] = useState<CountryId | null>(null);
-
-  if (phase !== 'PLAYING' && phase !== 'CHALLENGE_PLAYING') return null;
 
   const chapterInfo = CHAPTERS[chapter];
   const progressPercent = Math.min(100, (age / 82) * 100);
@@ -94,13 +103,383 @@ export const HUD: React.FC = () => {
       ? environmentChangeLogs[environmentChangeLogs.length - 1]
       : null;
 
+  // ==================== 1. LIFE STATUS MODAL ("人生ステータス" 画面: 7 Stats + Growth Records) ====================
+  if (phase === 'PAUSED' && mobileSheet !== 'none') {
+    return (
+      <div
+        data-testid="life-status-modal"
+        style={{
+          paddingTop: 'max(0.5rem, env(safe-area-inset-top))',
+          paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))',
+          paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
+          paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
+        }}
+        className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/85 backdrop-blur-md select-none"
+      >
+        <div className="glass-panel max-w-lg w-full rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 shadow-2xl border border-sky-400/40 max-h-[92dvh] flex flex-col">
+          {/* Header with Title & Close Icon Button */}
+          <div className="flex items-center justify-between gap-2 border-b border-white/15 pb-2.5 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-sky-500/25 border border-sky-400/40 flex items-center justify-center text-sky-300">
+                <BarChart3 className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-sm sm:text-base font-black text-white leading-tight">
+                  人生ステータス・成長の記録
+                </h2>
+                <div className="text-[10px] text-slate-300 font-bold">
+                  {country.flag} {country.name}生まれ ・ {Math.floor(age)}歳（{chapterInfo.title} / 進捗 {Math.round(progressPercent)}%）
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              data-testid="close-status-modal-top"
+              onClick={closeMobileSheet}
+              aria-label="人生ステータス画面を閉じる"
+              className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-white/10 transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Scrollable Body containing all 7 Stats + Social Environment + Growth & Choice Records */}
+          <div className="flex-1 overflow-y-auto my-2.5 space-y-3 pr-1">
+            {/* Section A: All 7 Uncapped Life Stats (Happiness, Health, Money, Relationships, Knowledge, Self-Actualization, Resilience) */}
+            <div className="glass-card rounded-2xl p-3 space-y-2 border border-sky-400/25">
+              <div className="flex items-center justify-between text-[11px] font-extrabold text-sky-300 uppercase">
+                <span>📊 現在のステータス（上限なし成長）</span>
+                <span className="text-[10px] text-amber-300 font-bold truncate max-w-[140px]">
+                  {career}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {STAT_META.map((item) => {
+                  const Icon = item.icon;
+                  const val = stats[item.key];
+                  const barInfo = getStatBarProgress(val);
+                  return (
+                    <div
+                      key={item.key}
+                      className="bg-slate-900/75 p-2 rounded-xl border border-white/10 space-y-1"
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="flex items-center gap-1.5 font-bold text-slate-200">
+                          <Icon className={`w-3.5 h-3.5 shrink-0 ${item.text}`} />
+                          <span>{item.label}</span>
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-white/10 text-amber-300">
+                            {barInfo.tierLabel}
+                          </span>
+                          <span
+                            data-testid={`modal-stat-${item.key}`}
+                            className={`text-xs sm:text-sm font-black tabular-nums ${item.text}`}
+                          >
+                            {formatStatNumber(val)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-800/90 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${item.color} transition-all duration-300`}
+                          style={{ width: `${barInfo.percent}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Section B: Current Social Environment & Birth Conditions */}
+            <div className="glass-card rounded-2xl p-3 space-y-2 border border-emerald-400/25">
+              <div className="flex items-center justify-between text-[11px] font-extrabold text-emerald-300">
+                <span className="flex items-center gap-1">
+                  <Globe className="w-3.5 h-3.5" />
+                  社会環境・出生条件
+                </span>
+                <span className="text-xs font-black" style={{ color: bandInfo.color }}>
+                  環境難易度: {lifeDifficultyIndex}/100（初期 {initialLifeDifficultyIndex}）
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                <div className="bg-slate-900/70 p-2 rounded-lg">
+                  <span className="text-slate-400 block text-[9px]">家庭の経済状況</span>
+                  <span className="font-bold text-amber-300">{conditions.economy}</span>
+                </div>
+                <div className="bg-slate-900/70 p-2 rounded-lg">
+                  <span className="text-slate-400 block text-[9px]">居住地域</span>
+                  <span className="font-bold text-sky-300">
+                    {conditions.residenceArea}
+                    {tags.includes('urban_relocated') ? '（都市転居済）' : ''}
+                  </span>
+                </div>
+                <div className="bg-slate-900/70 p-2 rounded-lg">
+                  <span className="text-slate-400 block text-[9px]">家庭からの支援</span>
+                  <span className="font-bold text-white">{conditions.familySupport}</span>
+                </div>
+                <div className="bg-slate-900/70 p-2 rounded-lg">
+                  <span className="text-slate-400 block text-[9px]">個人の得意分野</span>
+                  <span className="font-bold text-emerald-300">{conditions.specialty}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Section C: Growth Records ("成長の記録") & Choice History */}
+            <div className="glass-card rounded-2xl p-3 space-y-2 border border-amber-400/25">
+              <div className="text-[11px] font-extrabold text-amber-300 flex items-center gap-1">
+                <ScrollText className="w-3.5 h-3.5" />
+                成長の記録・選択履歴 ({history.length}件)
+              </div>
+
+              {(utilizedSupports.length > 0 ||
+                completedChallenges.length > 0 ||
+                overcomeHardships.length > 0) && (
+                <div className="space-y-1.5 pb-2 border-b border-white/10">
+                  {utilizedSupports.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {utilizedSupports.map((sup, i) => (
+                        <span
+                          key={i}
+                          className="text-[10px] bg-sky-500/20 text-sky-200 px-2 py-0.5 rounded-full font-bold"
+                        >
+                          🏛️ {sup}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {completedChallenges.map((c, i) => (
+                    <div
+                      key={i}
+                      className="text-[10px] bg-slate-900/80 px-2 py-1 rounded-lg text-emerald-300 font-bold"
+                    >
+                      🏆 {c.title}：{c.outcome}（{c.score}pt）
+                    </div>
+                  ))}
+                  {overcomeHardships.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {overcomeHardships.map((h, i) => (
+                        <span
+                          key={i}
+                          className="text-[10px] bg-teal-500/20 text-teal-200 px-2 py-0.5 rounded-full font-bold"
+                        >
+                          🛡️ {h}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                {history
+                  .slice()
+                  .reverse()
+                  .map((item) => (
+                    <div
+                      key={item.id}
+                      className="bg-slate-900/75 rounded-xl p-2.5 text-left space-y-0.5 border border-white/5"
+                    >
+                      <div className="flex items-center justify-between text-[10px] text-sky-300 font-bold">
+                        <span>{item.age}歳</span>
+                        <span className="uppercase text-[9px] px-1.5 py-0.2 rounded bg-white/10">
+                          {item.type}
+                        </span>
+                      </div>
+                      <div className="text-xs font-black text-white leading-snug">
+                        {item.title}
+                      </div>
+                      <div className="text-[10px] text-slate-300 leading-snug">{item.detail}</div>
+                      {item.deltas && Object.keys(item.deltas).length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {Object.entries(item.deltas).map(([k, v]) => {
+                            if (!v) return null;
+                            const label = DELTA_LABELS[k as keyof StatDelta] || k;
+                            const isPos = v > 0;
+                            return (
+                              <span
+                                key={k}
+                                className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                                  isPos
+                                    ? 'bg-emerald-500/20 text-emerald-300'
+                                    : 'bg-rose-500/20 text-rose-300'
+                                }`}
+                              >
+                                {label} {isPos ? `+${formatStatNumber(v)}` : formatStatNumber(v)}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Explicit Close & Resume Button */}
+          <button
+            type="button"
+            data-testid="close-status-modal-bottom"
+            onClick={closeMobileSheet}
+            className="w-full py-2.5 sm:py-3 rounded-2xl bg-gradient-to-r from-sky-400 to-indigo-600 hover:from-sky-300 hover:to-indigo-500 text-white font-black text-xs sm:text-sm shadow-xl flex items-center justify-center gap-2 shrink-0"
+          >
+            <Play className="w-4 h-4 fill-current" />
+            閉じてプレイを再開する
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase !== 'PLAYING' && phase !== 'CHALLENGE_PLAYING') return null;
+
+  // ==================== 2. SMARTPHONE NORMAL PLAY HUD (ZERO HAPPINESS/STAT PANELS ON SCREEN) ====================
+  if (flightBounds.isMobile) {
+    // Combine all active stat deltas across recent feedbacks into a single compact map so multiple notifications are merged cleanly
+    const combinedDeltas: StatDelta = {};
+    for (const fb of feedbacks) {
+      for (const [k, v] of Object.entries(fb.deltas)) {
+        if (typeof v === 'number' && v !== 0) {
+          const key = k as keyof StatDelta;
+          combinedDeltas[key] = (combinedDeltas[key] || 0) + v;
+        }
+      }
+    }
+    const deltaEntries = Object.entries(combinedDeltas).filter(
+      ([, v]) => typeof v === 'number' && v !== 0
+    );
+    const latestFeedback = feedbacks.length > 0 ? feedbacks[feedbacks.length - 1] : null;
+
+    return (
+      <div
+        data-testid="mobile-flight-hud"
+        style={{
+          paddingTop: 'max(0.45rem, env(safe-area-inset-top))',
+          paddingLeft: 'max(0.65rem, env(safe-area-inset-left))',
+          paddingRight: 'max(0.65rem, env(safe-area-inset-right))',
+        }}
+        className="fixed inset-x-0 top-0 z-10 pointer-events-none select-none"
+      >
+        {/* Top Row: Left = Current Age & Life Progress | Right = Status Icon Button (1 icon) + Pause Button */}
+        <div className="w-full flex items-start justify-between gap-2">
+          {/* Top-Left: Age + Life Progress ONLY (No Happiness or other stats!) */}
+          <div className="flex flex-col items-start gap-1 max-w-[68%]">
+            <div
+              data-testid="mobile-age-progress"
+              className="glass-panel rounded-xl px-2.5 py-1.5 flex items-center gap-2 shadow-lg pointer-events-auto"
+            >
+              <span className="text-base leading-none">{country.flag}</span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-xs sm:text-sm font-black text-white tabular-nums">
+                  {Math.floor(age)}歳
+                </span>
+                <span className="text-[10px] font-bold text-amber-300 hidden xs:inline">
+                  {chapterInfo.title}
+                </span>
+              </div>
+              <div className="h-3.5 w-px bg-white/15" />
+              <div className="flex items-center gap-1.5">
+                <div className="w-12 sm:w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-white/10">
+                  <div
+                    className="h-full bg-gradient-to-r from-sky-400 to-amber-400 transition-all duration-300"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+                <span className="text-[10px] font-bold text-slate-300 tabular-nums">
+                  {Math.round(progressPercent)}%
+                </span>
+              </div>
+            </div>
+
+            {/* Compact Challenge Stage Score/Timer Strip (only during Challenge Stage) */}
+            {phase === 'CHALLENGE_PLAYING' && (
+              <div className="glass-panel border border-amber-400/70 rounded-lg px-2.5 py-0.5 flex items-center gap-2 text-[10px] font-black shadow">
+                <span className="text-amber-300">目標 {challengeTargetScore}pt</span>
+                <span className="text-white">
+                  現在 <span className="text-amber-300">{formatStatNumber(challengeScore)}</span>pt
+                </span>
+                <span className="text-sky-300">
+                  {Math.max(0, Math.ceil(challengeTimeLeft))}秒
+                </span>
+              </div>
+            )}
+
+            {/* Top-Left Safe-Zone Stat Delta Toast (Small text, merged deltas, 1.5s auto-dismiss, never covers center or choice gates) */}
+            {(deltaEntries.length > 0 || latestFeedback) && (
+              <div
+                key={latestFeedback?.id || 'delta-toast'}
+                data-testid="mobile-stat-toast"
+                className="animate-mobile-toast bg-slate-950/80 border border-white/15 px-2 py-1 rounded-lg shadow-md pointer-events-none flex flex-wrap items-center gap-1 max-w-[240px]"
+              >
+                {deltaEntries.length > 0 ? (
+                  deltaEntries.map(([k, v]) => {
+                    const num = v as number;
+                    const label = DELTA_LABELS[k as keyof StatDelta] || k;
+                    const isPos = num > 0;
+                    return (
+                      <span
+                        key={k}
+                        className={`text-[10px] leading-none font-extrabold px-1.5 py-0.5 rounded tabular-nums ${
+                          isPos
+                            ? 'bg-emerald-500/25 text-emerald-300'
+                            : 'bg-rose-500/25 text-rose-300'
+                        }`}
+                      >
+                        {label} {isPos ? `+${formatStatNumber(num)}` : `-${formatStatNumber(Math.abs(num))}`}
+                      </span>
+                    );
+                  })
+                ) : (
+                  <span className="text-[10px] leading-none font-bold text-sky-200 truncate">
+                    {latestFeedback?.title}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Top-Right: Single Small Status Check Icon Button + Pause Icon Button */}
+          <div className="flex items-center gap-1.5 pointer-events-auto shrink-0">
+            <button
+              type="button"
+              data-testid="mobile-status-btn"
+              onClick={() => openMobileSheet('status')}
+              aria-label="人生ステータスを確認"
+              title="人生ステータス・成長の記録"
+              className="glass-panel w-9 h-9 rounded-xl flex items-center justify-center text-sky-300 hover:bg-slate-800/80 shadow-lg active:scale-95 transition"
+            >
+              <BarChart3 className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              data-testid="mobile-pause-btn"
+              onClick={() => setPhase('PAUSED')}
+              aria-label="ポーズ"
+              title="ポーズ"
+              className="glass-panel w-9 h-9 rounded-xl flex items-center justify-center text-amber-300 hover:bg-slate-800/80 shadow-lg active:scale-95 transition"
+            >
+              <Pause className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== 3. PC HUD LAYOUT (UNCHANGED RICH DESKTOP EXPERIENCE) ====================
   const targetCountryForDebug: CountryId = selectedDebugCountry || country.id;
   const debugCountryParams =
     countryParamsMap[targetCountryForDebug] ||
     DEFAULT_COUNTRY_PARAMETERS[targetCountryForDebug];
 
   return (
-    <div className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3 md:p-5">
+    <div
+      data-testid="pc-flight-hud"
+      className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3 md:p-5"
+    >
       {/* Top Bar: Age, Country, Environment Difficulty, Chapter Progress, Sound & Pause */}
       <div className="flex flex-wrap items-start justify-between gap-2.5">
         {/* Left: Country, Age, Environment Difficulty & Chapter Progress */}
@@ -188,7 +567,7 @@ export const HUD: React.FC = () => {
           </div>
         )}
 
-        {/* Right: Social Environment Panel Button, Debug Drawer Button, Sound & Pause */}
+        {/* Right: Social Environment Panel Button, Life Records, Debug Drawer Button, Sound & Pause */}
         <div className="flex items-center gap-2 pointer-events-auto">
           <button
             type="button"
@@ -201,6 +580,15 @@ export const HUD: React.FC = () => {
           >
             <Globe className="w-4 h-4" />
             <span className="hidden sm:inline">社会環境</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => openMobileSheet('status')}
+            className="glass-panel px-3 py-2.5 rounded-xl hover:bg-slate-800/80 transition flex items-center gap-1.5 font-bold text-xs text-amber-300 shadow-lg"
+          >
+            <ScrollText className="w-4 h-4" />
+            <span className="hidden sm:inline">人生の記録</span>
           </button>
 
           <button

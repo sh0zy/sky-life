@@ -148,25 +148,45 @@ export const SkyEnvironment: React.FC<SkyEnvironmentProps> = ({ playerPosRef }) 
       });
     }
 
+    // Sync viewport dimensions into flightBounds if canvas size changed
+    if (
+      Math.abs( _.size.width - store.flightBounds.viewportWidth ) > 1 ||
+      Math.abs( _.size.height - store.flightBounds.viewportHeight ) > 1
+    ) {
+      store.updateViewportSize(_.size.width, _.size.height);
+    }
+
+    const bounds = store.flightBounds;
+
     // Camera follow player smoothly + FOV boost + obstacle shake
-    const targetCamX = playerPosRef.current.x * 0.48;
-    const targetCamY = playerPosRef.current.y * 0.45 + 1.85;
-    const targetCamZ = store.isBoosting ? 7.2 : 6.4;
+    const targetCamX = playerPosRef.current.x * bounds.camFollowX;
+    const targetCamY = playerPosRef.current.y * bounds.camFollowY + 1.85;
+    const targetCamZ = store.isBoosting
+      ? bounds.baseCamZ + (bounds.isMobile ? 0.45 : 0.8)
+      : bounds.baseCamZ;
 
-    const shakeX = (Math.random() - 0.5) * store.cameraShake * 0.55;
-    const shakeY = (Math.random() - 0.5) * store.cameraShake * 0.55;
+    const shakeAmp = bounds.isMobile ? 0.22 : 0.52;
+    const shakeX = (Math.random() - 0.5) * store.cameraShake * shakeAmp;
+    const shakeY = (Math.random() - 0.5) * store.cameraShake * shakeAmp;
 
-    camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetCamX + shakeX, dt * 6);
-    camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetCamY + shakeY, dt * 6);
-    camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetCamZ, dt * 5);
+    const camAlpha = 1 - Math.exp(-6.5 * dt);
+    const zAlpha = 1 - Math.exp(-5.5 * dt);
 
-    const lookX = playerPosRef.current.x * 0.3;
-    const lookY = playerPosRef.current.y * 0.3 + 0.4;
+    camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetCamX + shakeX, camAlpha);
+    camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetCamY + shakeY, camAlpha);
+    camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetCamZ, zAlpha);
+
+    const lookX = playerPosRef.current.x * bounds.lookFollowX;
+    const lookY = playerPosRef.current.y * bounds.lookFollowY + 0.4;
     camera.lookAt(lookX, lookY, -12);
 
     if (camera instanceof THREE.PerspectiveCamera) {
-      const targetFov = store.isBoosting ? 74 : store.phase === 'CHALLENGE_PLAYING' ? 66 : 58;
-      camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, dt * 6);
+      const targetFov = store.isBoosting
+        ? bounds.baseFov + (bounds.isMobile ? 5 : 14)
+        : store.phase === 'CHALLENGE_PLAYING'
+        ? bounds.baseFov + (bounds.isMobile ? 3 : 8)
+        : bounds.baseFov;
+      camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, camAlpha);
       camera.updateProjectionMatrix();
     }
   });

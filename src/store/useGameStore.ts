@@ -36,6 +36,10 @@ import {
   evaluateSocialRiskProbability,
   computeChallengeModifiers,
 } from '../utils/socialSimulation';
+import {
+  SafeFlightBounds,
+  computeSafeFlightBounds,
+} from '../utils/viewportFlightBounds';
 
 const SAVE_KEY = 'skylife_save_v1';
 const RECORDS_KEY = 'skylife_records_v1';
@@ -104,7 +108,14 @@ interface GameState {
 
   // Real-time flight control & effects
   inputVector: { x: number; y: number };
+  inputSource: 'keyboard' | 'touch';
   isBoosting: boolean;
+  flightBounds: SafeFlightBounds;
+  mobileSensitivity: number;
+  pcSensitivity: number;
+  joystickDeadzone: number;
+  mobileSheet: 'none' | 'status' | 'records';
+  resumePhaseAfterSheet: GamePhase | null;
   cameraShake: number;
   skyDarkness: number;
   growthFlash: boolean;
@@ -119,8 +130,12 @@ interface GameState {
   toggleSocialEnvPanel: () => void;
   updateCountryParams: (countryId: CountryId, partial: Partial<CountrySocialParams>) => void;
   resetCountryParams: (countryId?: CountryId | 'all') => void;
-  setInputVector: (x: number, y: number) => void;
+  setInputVector: (x: number, y: number, source?: 'keyboard' | 'touch') => void;
   setBoosting: (boosting: boolean) => void;
+  updateViewportSize: (width: number, height: number) => void;
+  setMobileSensitivity: (val: number) => void;
+  openMobileSheet: (sheet: 'status' | 'records') => void;
+  closeMobileSheet: () => void;
   toggleSound: () => void;
   startNewGameSelect: () => void;
   confirmBirthCountry: (countryId: CountryId | 'random') => void;
@@ -220,7 +235,17 @@ export const useGameStore = create<GameState>((set, get) => {
     challengeSubOutcome: '',
 
     inputVector: { x: 0, y: 0 },
+    inputSource: 'keyboard',
     isBoosting: false,
+    flightBounds: computeSafeFlightBounds(
+      typeof window !== 'undefined' ? window.innerWidth : 1280,
+      typeof window !== 'undefined' ? window.innerHeight : 720
+    ),
+    mobileSensitivity: 0.56,
+    pcSensitivity: 1.0,
+    joystickDeadzone: 0.1,
+    mobileSheet: 'none',
+    resumePhaseAfterSheet: null,
     cameraShake: 0,
     skyDarkness: 0,
     growthFlash: false,
@@ -228,7 +253,7 @@ export const useGameStore = create<GameState>((set, get) => {
     pastRecords: loadPastRecords(),
 
     setPhase: (phase) => {
-      set({ phase });
+      set({ phase, mobileSheet: 'none', resumePhaseAfterSheet: null });
       if (phase === 'TITLE' || phase === 'BIRTH_SELECT') {
         soundEngine.startBGM('title');
       } else if (phase === 'PLAYING') {
@@ -315,7 +340,8 @@ export const useGameStore = create<GameState>((set, get) => {
       });
     },
 
-    setInputVector: (x, y) => set({ inputVector: { x, y } }),
+    setInputVector: (x, y, source = 'keyboard') =>
+      set({ inputVector: { x, y }, inputSource: source }),
 
     setBoosting: (boosting) => {
       const prev = get().isBoosting;
@@ -323,6 +349,48 @@ export const useGameStore = create<GameState>((set, get) => {
         soundEngine.playBoost();
       }
       set({ isBoosting: boosting });
+    },
+
+    updateViewportSize: (width, height) => {
+      const nextBounds = computeSafeFlightBounds(width, height);
+      set({ flightBounds: nextBounds });
+    },
+
+    setMobileSensitivity: (val) => {
+      const clamped = Math.min(1.0, Math.max(0.3, val));
+      set({ mobileSensitivity: clamped });
+    },
+
+    openMobileSheet: (sheet) => {
+      const state = get();
+      const currentPhase = state.phase;
+      if (currentPhase === 'PLAYING' || currentPhase === 'CHALLENGE_PLAYING') {
+        set({
+          mobileSheet: sheet,
+          resumePhaseAfterSheet: currentPhase,
+          phase: 'PAUSED',
+          isBoosting: false,
+          inputVector: { x: 0, y: 0 },
+        });
+      } else {
+        set({
+          mobileSheet: sheet,
+          isBoosting: false,
+          inputVector: { x: 0, y: 0 },
+        });
+      }
+    },
+
+    closeMobileSheet: () => {
+      const state = get();
+      const targetPhase = state.resumePhaseAfterSheet || 'PLAYING';
+      set({
+        mobileSheet: 'none',
+        resumePhaseAfterSheet: null,
+        phase: state.phase === 'PAUSED' ? targetPhase : state.phase,
+        isBoosting: false,
+        inputVector: { x: 0, y: 0 },
+      });
     },
 
     toggleSound: () => {
@@ -1295,11 +1363,12 @@ export const useGameStore = create<GameState>((set, get) => {
     decayEffects: (dt) => {
       const state = get();
       if (state.cameraShake > 0) {
-        set({ cameraShake: Math.max(0, state.cameraShake - dt * 2.2) });
+        set({ cameraShake: Math.max(0, state.cameraShake - dt * 2.5) });
       }
       if (state.feedbacks.length > 0) {
         const now = Date.now();
-        const filtered = state.feedbacks.filter((f) => now - f.createdAt < 3200);
+        const maxDuration = state.flightBounds.isMobile ? 1500 : 3000;
+        const filtered = state.feedbacks.filter((f) => now - f.createdAt < maxDuration);
         if (filtered.length !== state.feedbacks.length) {
           set({ feedbacks: filtered });
         }
