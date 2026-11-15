@@ -39,20 +39,23 @@ export function detectDeviceViewport(width: number, height: number): {
   const aspectRatio = safeW / safeH;
   const isPortrait = aspectRatio < 1.0;
 
-  const isCoarsePointer =
-    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-      ? window.matchMedia('(pointer: coarse)').matches
-      : false;
+  const isMobileUserAgent =
+    typeof navigator !== 'undefined' &&
+    /iPhone|iPod|Android.*Mobile|Windows Phone/i.test(navigator.userAgent);
 
   const shortSide = Math.min(safeW, safeH);
-  const longSide = Math.max(safeW, safeH);
 
-  // Mobile if portrait width < 768, OR landscape smartphone dimensions (shortSide <= 540 and longSide <= 1024),
-  // OR coarse-pointer touch device with phone-sized short side
+  // Smartphone Portrait: width <= 500px in portrait orientation (e.g. 360x800, 390x844, 412x915)
+  const isPortraitPhone = isPortrait && safeW <= 500;
+
+  // Smartphone Landscape: height <= 440px and width <= 960px in landscape orientation (e.g. 844x390, 915x412)
+  const isLandscapePhone = !isPortrait && safeH <= 440 && safeW <= 960;
+
+  // PC (e.g. 1920x1080, 1366x768, touch-enabled laptops, and desktop split windows > 500x440) is always isMobile = false
   const isMobile =
-    safeW < 768 ||
-    (shortSide <= 540 && longSide <= 1024) ||
-    (isCoarsePointer && shortSide <= 600);
+    isPortraitPhone ||
+    isLandscapePhone ||
+    (isMobileUserAgent && shortSide <= 500);
 
   return {
     isMobile,

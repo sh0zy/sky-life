@@ -1,12 +1,27 @@
 import React, { useState } from 'react';
-import { useGameStore, DEFAULT_SCHEDULER_WEIGHTS } from '../../store/useGameStore';
+import {
+  useGameStore,
+  DEFAULT_SCHEDULER_WEIGHTS,
+} from '../../store/useGameStore';
+import { formatStatNumber } from '../../utils/statSystem';
 import { COUNTRIES, CHALLENGE_STAGES } from '../../data/gameData';
 import {
   CountryId,
   DifficultyLevel,
   ChoiceOption,
   CountrySocialParams,
+  StatDelta,
 } from '../../types/game';
+
+const DELTA_LABELS: Record<keyof StatDelta, string> = {
+  happiness: '幸福度',
+  health: '健康',
+  money: 'お金',
+  relationships: '人間関係',
+  knowledge: '知識・スキル',
+  selfActualization: '自己実現',
+  resilience: 'レジリエンス',
+};
 import {
   getLifeDifficultyBandInfo,
   computeChallengeModifiers,
@@ -1009,13 +1024,9 @@ export const ScreenOverlays: React.FC = () => {
                     <span>{opt.icon}</span>
                     <span>{opt.label}</span>
                   </div>
-                  <div className="text-xs text-slate-300">{opt.subLabel}</div>
-                  <div className="text-xs font-bold text-emerald-300">
-                    ⭕ メリット: {opt.prosText}
-                  </div>
-                  <div className="text-xs font-bold text-rose-300">
-                    ⚠️ 代償/リスク: {opt.consText}
-                  </div>
+                  {opt.subLabel && (
+                    <div className="text-xs text-slate-300">{opt.subLabel}</div>
+                  )}
                 </div>
                 <ArrowRight className="w-5 h-5 text-sky-400 shrink-0 group-hover:translate-x-1 transition" />
               </button>
@@ -1072,16 +1083,13 @@ export const ScreenOverlays: React.FC = () => {
                   <div className="text-xs md:text-sm text-slate-300 mt-0.5">
                     {opt.description}
                   </div>
-                  <div className="flex flex-wrap gap-2 mt-1.5">
-                    <div className="text-xs font-bold text-amber-300 bg-slate-900/80 px-2.5 py-1 rounded-lg">
-                      📊 予測効果：{opt.prosConsPreview}
-                    </div>
-                    {opt.supportUsedLabel && (
+                  {opt.supportUsedLabel && (
+                    <div className="flex flex-wrap gap-2 mt-1.5">
                       <div className="text-xs font-bold text-sky-300 bg-sky-500/15 border border-sky-400/30 px-2.5 py-1 rounded-lg">
                         🏛️ 利用制度：{opt.supportUsedLabel}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
                 <ArrowRight className="w-5 h-5 text-sky-400 shrink-0 group-hover:translate-x-1 transition" />
               </button>
@@ -1295,13 +1303,34 @@ export const ScreenOverlays: React.FC = () => {
                 📜 これまでの選択・イベント履歴 ({history.length}件)
               </div>
               {history.map((item) => (
-                <div key={item.id} className="glass-card rounded-xl p-3 text-left">
+                <div key={item.id} className="glass-card rounded-xl p-3 text-left space-y-1">
                   <div className="flex items-center justify-between text-xs text-sky-300 font-bold">
                     <span>{item.age}歳</span>
                     <span className="uppercase">{item.type}</span>
                   </div>
-                  <div className="text-sm font-black text-white mt-0.5">{item.title}</div>
-                  <div className="text-xs text-slate-300 mt-0.5">{item.detail}</div>
+                  <div className="text-sm font-black text-white">{item.title}</div>
+                  <div className="text-xs text-slate-300">{item.detail}</div>
+                  {item.deltas && Object.keys(item.deltas).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {Object.entries(item.deltas).map(([k, v]) => {
+                        if (!v) return null;
+                        const label = DELTA_LABELS[k as keyof StatDelta] || k;
+                        const isPos = v > 0;
+                        return (
+                          <span
+                            key={k}
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full tabular-nums ${
+                              isPos
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
+                                : 'bg-rose-500/20 text-rose-300 border border-rose-400/30'
+                            }`}
+                          >
+                            {label} {isPos ? `+${formatStatNumber(v)}` : `-${formatStatNumber(Math.abs(v))}`}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

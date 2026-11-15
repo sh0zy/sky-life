@@ -28,7 +28,7 @@ import {
   ScrollText,
   X,
 } from 'lucide-react';
-import { StatDelta, CountryId, CountrySocialParams } from '../../types/game';
+import { StatDelta, CountryId, CountrySocialParams, ChoiceOption } from '../../types/game';
 
 export const STAT_META = [
   { key: 'happiness', label: '幸福度', icon: Smile, color: 'bg-amber-400', text: 'text-amber-300' },
@@ -78,6 +78,7 @@ export const HUD: React.FC = () => {
   const schedulerWeights = useGameStore((s) => s.schedulerWeights);
   const flightBounds = useGameStore((s) => s.flightBounds);
   const mobileSheet = useGameStore((s) => s.mobileSheet);
+  const activeChoicePreview = useGameStore((s) => s.activeChoicePreview);
 
   const toggleSound = useGameStore((s) => s.toggleSound);
   const setPhase = useGameStore((s) => s.setPhase);
@@ -335,6 +336,206 @@ export const HUD: React.FC = () => {
 
   if (phase !== 'PLAYING' && phase !== 'CHALLENGE_PLAYING') return null;
 
+  // Helper to render the 1-to-1 Top Choice Route Cards (guaranteed zero overlap via CSS Grid)
+  const renderTopChoiceRouteCards = (mode: 'portrait' | 'landscape' | 'pc') => {
+    if (phase !== 'PLAYING' || !activeChoicePreview) return null;
+
+    const ev = activeChoicePreview.event;
+    const options: ChoiceOption[] = ev.centerChoice
+      ? [ev.leftChoice, ev.centerChoice, ev.rightChoice]
+      : [ev.leftChoice, ev.rightChoice];
+    const isThree = options.length === 3;
+    const routeBadges = isThree
+      ? ['① 左', '② 中央', '③ 右']
+      : ['① 左', '② 右'];
+
+    if (mode === 'landscape') {
+      return (
+        <div
+          data-testid="choice-route-cards-container"
+          className="flex-1 max-w-[530px] mx-1 pointer-events-none select-none"
+        >
+          <div className="bg-slate-950/92 border border-sky-400/60 rounded-lg px-2.5 py-0.5 mb-1 text-center shadow-lg">
+            <span className="text-[9px] font-black text-amber-300 mr-1.5">
+              {ev.kind === 'chance_risk' ? '🎲 チャンスとリスク' : '⚖️ 必須選択'}
+            </span>
+            <span className="text-[11px] font-black text-white leading-tight">
+              {ev.title}
+            </span>
+          </div>
+          <div
+            className={`grid ${
+              isThree ? 'grid-cols-3 gap-1.5' : 'grid-cols-2 gap-2'
+            } w-full`}
+          >
+            {options.map((opt, idx) => {
+              const isTargeted = activeChoicePreview.targetedIndex === idx;
+              return (
+                <div
+                  key={opt.id}
+                  data-testid={`choice-route-card-${opt.id}`}
+                  style={{
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    borderColor: opt.color,
+                  }}
+                  className={`min-w-0 rounded-xl px-2 py-1 border-2 text-left shadow-xl transition-all overflow-hidden ${
+                    isTargeted ? 'ring-2 ring-amber-300' : 'opacity-92'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span
+                      className="text-[9px] font-black text-slate-950 px-1.5 py-0.2 rounded leading-tight shrink-0"
+                      style={{ backgroundColor: opt.color }}
+                    >
+                      {routeBadges[idx]}
+                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-xs leading-none">{opt.icon}</span>
+                      {isTargeted && (
+                        <span className="text-[9px] font-black bg-amber-400 text-slate-950 px-1 rounded">
+                          進路中
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-[11px] font-black text-white leading-snug break-words whitespace-normal mt-0.5">
+                    {opt.label}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    if (mode === 'portrait') {
+      return (
+        <div
+          data-testid="choice-route-cards-container"
+          className="w-full mt-1.5 pointer-events-none select-none"
+        >
+          <div className="bg-slate-950/94 border border-sky-400/60 rounded-xl px-2.5 py-1 mb-1 text-center shadow-lg">
+            <span className="text-[9px] font-black text-amber-300 mr-1.5">
+              {ev.kind === 'chance_risk' ? '🎲 チャンスとリスク' : '⚖️ 必須選択'}
+            </span>
+            <span className="text-[11px] sm:text-xs font-black text-white leading-tight break-words">
+              {ev.title}
+            </span>
+          </div>
+          <div
+            className={`grid ${
+              isThree ? 'grid-cols-3 gap-1.5' : 'grid-cols-2 gap-2'
+            } w-full`}
+          >
+            {options.map((opt, idx) => {
+              const isTargeted = activeChoicePreview.targetedIndex === idx;
+              return (
+                <div
+                  key={opt.id}
+                  data-testid={`choice-route-card-${opt.id}`}
+                  style={{
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    borderColor: opt.color,
+                  }}
+                  className={`min-w-0 rounded-xl p-1.5 sm:p-2 border-2 text-left shadow-xl transition-all overflow-hidden flex flex-col justify-start ${
+                    isTargeted ? 'ring-2 ring-amber-300' : 'opacity-92'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span
+                      className="text-[9px] sm:text-[10px] font-black text-slate-950 px-1.5 py-0.2 rounded leading-tight shrink-0"
+                      style={{ backgroundColor: opt.color }}
+                    >
+                      {routeBadges[idx]}
+                    </span>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <span className="text-sm leading-none">{opt.icon}</span>
+                      {isTargeted && (
+                        <span className="text-[9px] font-black bg-amber-400 text-slate-950 px-1 rounded">
+                          🎯
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-[11px] sm:text-xs font-black text-white leading-snug break-words whitespace-normal mt-1">
+                    {opt.label}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // PC mode
+    return (
+      <div
+        data-testid="choice-route-cards-container"
+        className={`w-full ${isThree ? 'max-w-4xl' : 'max-w-2xl'} mx-auto pointer-events-none select-none`}
+      >
+        <div className="bg-slate-950/92 border-2 border-sky-400/70 rounded-2xl px-5 py-1.5 mb-2 text-center shadow-2xl">
+          <div className="text-[11px] font-black tracking-wider text-amber-300 uppercase">
+            {ev.kind === 'chance_risk'
+              ? '🎲 D. チャンスとリスク（回避不可）'
+              : '⚖️ A. 必須選択ゲート（回避不可）'}
+          </div>
+          <div className="text-base md:text-xl font-black text-white leading-tight mt-0.5">
+            {ev.title}
+          </div>
+        </div>
+        <div
+          className={`grid ${
+            isThree ? 'grid-cols-3 gap-3' : 'grid-cols-2 gap-4'
+          } w-full`}
+        >
+          {options.map((opt, idx) => {
+            const isTargeted = activeChoicePreview.targetedIndex === idx;
+            return (
+              <div
+                key={opt.id}
+                data-testid={`choice-route-card-${opt.id}`}
+                style={{
+                  backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                  borderColor: opt.color,
+                }}
+                className={`min-w-0 rounded-2xl p-3 border-2 text-left shadow-2xl transition-all overflow-hidden ${
+                  isTargeted ? 'ring-3 ring-amber-300 scale-[1.01]' : 'opacity-92'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className="text-xs font-black text-slate-950 px-2.5 py-0.5 rounded-full leading-tight shrink-0"
+                    style={{ backgroundColor: opt.color }}
+                  >
+                    {routeBadges[idx]}ルート
+                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {isTargeted && (
+                      <span className="text-[11px] font-black bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full">
+                        🎯 現在の進路
+                      </span>
+                    )}
+                    <span className="text-xl leading-none">{opt.icon}</span>
+                  </div>
+                </div>
+                <div className="text-sm md:text-base font-black text-white leading-snug break-words whitespace-normal mt-1.5">
+                  {opt.label}
+                </div>
+                {opt.subLabel && (
+                  <div className="text-xs text-slate-300 leading-snug break-words whitespace-normal mt-0.5">
+                    {opt.subLabel}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   // ==================== 2. SMARTPHONE NORMAL PLAY HUD (ZERO HAPPINESS/STAT PANELS ON SCREEN) ====================
   if (flightBounds.isMobile) {
     // Combine all active stat deltas across recent feedbacks into a single compact map so multiple notifications are merged cleanly
@@ -356,16 +557,16 @@ export const HUD: React.FC = () => {
       <div
         data-testid="mobile-flight-hud"
         style={{
-          paddingTop: 'max(0.45rem, env(safe-area-inset-top))',
-          paddingLeft: 'max(0.65rem, env(safe-area-inset-left))',
-          paddingRight: 'max(0.65rem, env(safe-area-inset-right))',
+          paddingTop: 'max(0.4rem, env(safe-area-inset-top))',
+          paddingLeft: 'max(0.5rem, env(safe-area-inset-left))',
+          paddingRight: 'max(0.5rem, env(safe-area-inset-right))',
         }}
         className="fixed inset-x-0 top-0 z-10 pointer-events-none select-none"
       >
-        {/* Top Row: Left = Current Age & Life Progress | Right = Status Icon Button (1 icon) + Pause Button */}
-        <div className="w-full flex items-start justify-between gap-2">
+        {/* Top Row: Left = Current Age & Life Progress | Center (Landscape) = Choice Cards | Right = Status + Pause */}
+        <div className="w-full flex items-start justify-between gap-1.5">
           {/* Top-Left: Age + Life Progress ONLY (No Happiness or other stats!) */}
-          <div className="flex flex-col items-start gap-1 max-w-[68%]">
+          <div className="flex flex-col items-start gap-1 max-w-[68%] shrink-0">
             <div
               data-testid="mobile-age-progress"
               className="glass-panel rounded-xl px-2.5 py-1.5 flex items-center gap-2 shadow-lg pointer-events-auto"
@@ -381,7 +582,7 @@ export const HUD: React.FC = () => {
               </div>
               <div className="h-3.5 w-px bg-white/15" />
               <div className="flex items-center gap-1.5">
-                <div className="w-12 sm:w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-white/10">
+                <div className="w-10 sm:w-14 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-white/10">
                   <div
                     className="h-full bg-gradient-to-r from-sky-400 to-amber-400 transition-all duration-300"
                     style={{ width: `${progressPercent}%` }}
@@ -406,39 +607,45 @@ export const HUD: React.FC = () => {
               </div>
             )}
 
-            {/* Top-Left Safe-Zone Stat Delta Toast (Small text, merged deltas, 1.5s auto-dismiss, never covers center or choice gates) */}
-            {(deltaEntries.length > 0 || latestFeedback) && (
+            {/* Top-Left Safe-Zone Choice Result & Stat Delta Toast (Compact, 2.0s auto-dismiss, hidden if a new choice gate is active so they never overlap) */}
+            {!activeChoicePreview && (deltaEntries.length > 0 || latestFeedback) && (
               <div
                 key={latestFeedback?.id || 'delta-toast'}
                 data-testid="mobile-stat-toast"
-                className="animate-mobile-toast bg-slate-950/80 border border-white/15 px-2 py-1 rounded-lg shadow-md pointer-events-none flex flex-wrap items-center gap-1 max-w-[240px]"
+                className="animate-mobile-toast bg-slate-950/90 border border-white/20 px-2.5 py-1.5 rounded-xl shadow-lg pointer-events-none flex flex-col gap-1 max-w-[250px]"
               >
-                {deltaEntries.length > 0 ? (
-                  deltaEntries.map(([k, v]) => {
-                    const num = v as number;
-                    const label = DELTA_LABELS[k as keyof StatDelta] || k;
-                    const isPos = num > 0;
-                    return (
-                      <span
-                        key={k}
-                        className={`text-[10px] leading-none font-extrabold px-1.5 py-0.5 rounded tabular-nums ${
-                          isPos
-                            ? 'bg-emerald-500/25 text-emerald-300'
-                            : 'bg-rose-500/25 text-rose-300'
-                        }`}
-                      >
-                        {label} {isPos ? `+${formatStatNumber(num)}` : `-${formatStatNumber(Math.abs(num))}`}
-                      </span>
-                    );
-                  })
-                ) : (
-                  <span className="text-[10px] leading-none font-bold text-sky-200 truncate">
-                    {latestFeedback?.title}
-                  </span>
+                {latestFeedback && (
+                  <div className="text-[10px] leading-snug font-black text-white line-clamp-2">
+                    {latestFeedback.subtitle || latestFeedback.title}
+                  </div>
+                )}
+                {deltaEntries.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1">
+                    {deltaEntries.map(([k, v]) => {
+                      const num = v as number;
+                      const label = DELTA_LABELS[k as keyof StatDelta] || k;
+                      const isPos = num > 0;
+                      return (
+                        <span
+                          key={k}
+                          className={`text-[10px] leading-none font-extrabold px-1.5 py-0.5 rounded tabular-nums ${
+                            isPos
+                              ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-400/30'
+                              : 'bg-rose-500/25 text-rose-300 border border-rose-400/30'
+                          }`}
+                        >
+                          {label} {isPos ? `+${formatStatNumber(num)}` : `-${formatStatNumber(Math.abs(num))}`}
+                        </span>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             )}
           </div>
+
+          {/* Center in Landscape: Non-overlapping 1-to-1 Choice Route Cards */}
+          {flightBounds.isMobileLandscape && renderTopChoiceRouteCards('landscape')}
 
           {/* Top-Right: Single Small Status Check Icon Button + Pause Icon Button */}
           <div className="flex items-center gap-1.5 pointer-events-auto shrink-0">
@@ -465,15 +672,31 @@ export const HUD: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Below Top Row in Portrait: Non-overlapping 1-to-1 Choice Route Cards */}
+        {flightBounds.isMobilePortrait && renderTopChoiceRouteCards('portrait')}
       </div>
     );
   }
 
-  // ==================== 3. PC HUD LAYOUT (UNCHANGED RICH DESKTOP EXPERIENCE) ====================
+  // ==================== 3. PC DESKTOP HUD LAYOUT (ALWAYS DISPLAYS HAPPINESS & ALL 7 STATS) ====================
   const targetCountryForDebug: CountryId = selectedDebugCountry || country.id;
   const debugCountryParams =
     countryParamsMap[targetCountryForDebug] ||
     DEFAULT_COUNTRY_PARAMETERS[targetCountryForDebug];
+
+  // Compute active stat deltas for PC live stat transition indicators (e.g., "250 → 265 (+15)")
+  const pcCombinedDeltas: StatDelta = {};
+  for (const fb of feedbacks) {
+    for (const [k, v] of Object.entries(fb.deltas)) {
+      if (typeof v === 'number' && v !== 0) {
+        const key = k as keyof StatDelta;
+        pcCombinedDeltas[key] = (pcCombinedDeltas[key] || 0) + v;
+      }
+    }
+  }
+  const happinessDelta = pcCombinedDeltas.happiness || 0;
+  const prevHappiness = Math.max(0, Math.round(stats.happiness - happinessDelta));
 
   return (
     <div
@@ -630,34 +853,119 @@ export const HUD: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Content Area: Left Life Stats, Center Popups, Right Social Env / Debug Drawer */}
-      <div className="flex items-start justify-between flex-1 mt-3 gap-2">
-        {/* Left: 7 Uncapped Life Stats */}
-        <div className="glass-panel rounded-2xl p-3 w-52 md:w-64 shadow-xl space-y-2 pointer-events-auto">
+      {/* Main Content Area: Left Life Stats (Always Visible on PC), Center Popups, Right Social Env / Debug Drawer */}
+      <div className="flex items-start justify-between flex-1 mt-2.5 gap-2 min-h-0">
+        {/* Left: Always-Visible PC Happiness & 7 Uncapped Life Stats Panel */}
+        <div
+          data-testid="pc-stats-panel"
+          className="glass-panel rounded-2xl p-2.5 md:p-3 w-56 md:w-68 shadow-xl space-y-1.5 pointer-events-auto max-h-[calc(100dvh-185px)] overflow-y-auto"
+        >
           <div className="flex items-center justify-between text-[11px] font-extrabold text-sky-300 tracking-wider uppercase border-b border-white/10 pb-1">
-            <span>LIFE STATUS</span>
+            <span>LIFE STATUS（常時表示）</span>
             <span className="text-[10px] text-slate-400 font-semibold">上限なし成長</span>
           </div>
+
+          {/* Featured Happiness Summary Card */}
+          <div
+            data-testid="pc-happiness-banner"
+            className={`rounded-xl px-2.5 py-1.5 border transition-all duration-300 ${
+              happinessDelta !== 0
+                ? happinessDelta > 0
+                  ? 'bg-amber-500/20 border-amber-300/70 shadow-md'
+                  : 'bg-rose-500/20 border-rose-400/70 shadow-md'
+                : 'bg-slate-900/80 border-amber-400/35'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-1">
+              <span className="flex items-center gap-1.5 text-xs font-black text-amber-300">
+                <Smile className="w-4 h-4 shrink-0 text-amber-300" />
+                <span>幸福度</span>
+              </span>
+              <div className="flex items-center gap-1.5 tabular-nums">
+                {happinessDelta !== 0 ? (
+                  <>
+                    <span className="text-[11px] font-bold text-slate-300">
+                      {formatStatNumber(prevHappiness)} →
+                    </span>
+                    <span className="text-base md:text-lg font-black text-amber-300">
+                      {formatStatNumber(stats.happiness)}
+                    </span>
+                    <span
+                      className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded ${
+                        happinessDelta > 0
+                          ? 'bg-emerald-500/30 text-emerald-200'
+                          : 'bg-rose-500/30 text-rose-200'
+                      }`}
+                    >
+                      {happinessDelta > 0
+                        ? `+${formatStatNumber(happinessDelta)}`
+                        : `-${formatStatNumber(Math.abs(happinessDelta))}`}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-base md:text-lg font-black text-amber-300">
+                    {formatStatNumber(stats.happiness)}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* All 7 Uncapped Life Status Rows */}
           {STAT_META.map((item) => {
             const Icon = item.icon;
             const val = stats[item.key];
+            const delta = pcCombinedDeltas[item.key] || 0;
+            const prevVal = Math.max(0, Math.round(val - delta));
             const barInfo = getStatBarProgress(val);
             return (
-              <div key={item.key} className="space-y-0.5">
+              <div
+                key={item.key}
+                data-testid={`pc-stat-row-${item.key}`}
+                className={`space-y-0.5 rounded-lg px-1.5 py-0.5 transition-colors duration-300 ${
+                  delta !== 0
+                    ? delta > 0
+                      ? 'bg-emerald-500/15 ring-1 ring-emerald-400/40'
+                      : 'bg-rose-500/15 ring-1 ring-rose-400/40'
+                    : ''
+                }`}
+              >
                 <div className="flex items-center justify-between text-xs gap-1">
                   <span className="flex items-center gap-1.5 font-bold text-slate-200 truncate">
                     <Icon className={`w-3.5 h-3.5 shrink-0 ${item.text}`} />
                     <span className="truncate">{item.label}：</span>
                   </span>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {barInfo.tierIndex > 1 && (
+                  <div className="flex items-center gap-1 shrink-0 tabular-nums">
+                    {barInfo.tierIndex > 1 && delta === 0 && (
                       <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-white/10 text-amber-300">
                         {barInfo.tierLabel}
                       </span>
                     )}
-                    <span className={`font-black tabular-nums ${item.text}`}>
-                      {formatStatNumber(val)}
-                    </span>
+                    {delta !== 0 ? (
+                      <>
+                        <span className="text-[10px] font-semibold text-slate-300">
+                          {formatStatNumber(prevVal)} →
+                        </span>
+                        <span className={`font-black ${item.text}`}>
+                          {formatStatNumber(val)}
+                        </span>
+                        <span
+                          className={`text-[10px] font-extrabold px-1 py-0.2 rounded ${
+                            delta > 0
+                              ? 'bg-emerald-500/30 text-emerald-200'
+                              : 'bg-rose-500/30 text-rose-200'
+                          }`}
+                        >
+                          {delta > 0
+                            ? `+${formatStatNumber(delta)}`
+                            : `-${formatStatNumber(Math.abs(delta))}`}
+                        </span>
+                      </>
+                    ) : (
+                      <span className={`font-black ${item.text}`}>
+                        {formatStatNumber(val)}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="w-full h-1.5 bg-slate-800/90 rounded-full overflow-hidden flex items-center">
@@ -666,18 +974,16 @@ export const HUD: React.FC = () => {
                     style={{ width: `${barInfo.percent}%` }}
                   />
                 </div>
-                <div className="flex justify-between text-[9px] text-slate-400 leading-none">
-                  <span>{formatStatNumber(barInfo.prevBound)}</span>
-                  <span>NEXT {formatStatNumber(barInfo.nextBound)}</span>
-                </div>
               </div>
             );
           })}
         </div>
 
-        {/* Center Floating Choice / Stat Delta / Environment Change Popups */}
-        <div className="flex-1 flex flex-col items-center justify-start pt-2 px-2 space-y-2 pointer-events-none">
-          {feedbacks.map((fb) => (
+        {/* Center Active Choice Route Cards & Floating Choice Result Popups */}
+        <div className="flex-1 flex flex-col items-center justify-start pt-1 px-2 space-y-2 pointer-events-none">
+          {renderTopChoiceRouteCards('pc')}
+          {!activeChoicePreview &&
+            feedbacks.map((fb) => (
             <div
               key={fb.id}
               className="animate-float-up glass-panel px-5 py-2.5 rounded-2xl border-2 text-center shadow-2xl max-w-md"

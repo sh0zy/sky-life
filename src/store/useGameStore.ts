@@ -10,6 +10,7 @@ import {
   StatDelta,
   HistoryLogItem,
   FloatingFeedback,
+  ActiveChoicePreview,
   ObstacleDef,
   ChallengeId,
   ChoiceOption,
@@ -97,6 +98,7 @@ interface GameState {
   feedbacks: FloatingFeedback[];
 
   // Active modals / failsafe / challenge states
+  activeChoicePreview: ActiveChoicePreview | null;
   activeChoiceEvent: LifeEventDef | null;
   activeObstacle: ObstacleDef | null;
   activeChallengeId: ChallengeId | null;
@@ -124,6 +126,7 @@ interface GameState {
 
   // Actions
   setPhase: (phase: GamePhase) => void;
+  setActiveChoicePreview: (preview: ActiveChoicePreview | null) => void;
   setDifficulty: (diff: DifficultyLevel) => void;
   setSchedulerWeights: (weights: Partial<SchedulerWeights>) => void;
   toggleDebugPanel: () => void;
@@ -225,6 +228,7 @@ export const useGameStore = create<GameState>((set, get) => {
     history: [],
     feedbacks: [],
 
+    activeChoicePreview: null,
     activeChoiceEvent: null,
     activeObstacle: null,
     activeChallengeId: null,
@@ -253,7 +257,12 @@ export const useGameStore = create<GameState>((set, get) => {
     pastRecords: loadPastRecords(),
 
     setPhase: (phase) => {
-      set({ phase, mobileSheet: 'none', resumePhaseAfterSheet: null });
+      set({
+        phase,
+        mobileSheet: 'none',
+        resumePhaseAfterSheet: null,
+        ...(phase !== 'PLAYING' && phase !== 'PAUSED' ? { activeChoicePreview: null } : {}),
+      });
       if (phase === 'TITLE' || phase === 'BIRTH_SELECT') {
         soundEngine.startBGM('title');
       } else if (phase === 'PLAYING') {
@@ -263,6 +272,10 @@ export const useGameStore = create<GameState>((set, get) => {
       } else if (phase === 'ENDING') {
         soundEngine.startBGM('ending');
       }
+    },
+
+    setActiveChoicePreview: (preview) => {
+      set({ activeChoicePreview: preview });
     },
 
     setDifficulty: (difficulty) => set({ difficulty }),
@@ -461,6 +474,7 @@ export const useGameStore = create<GameState>((set, get) => {
         triggeredChallengeIds: [],
         history: [birthHistory],
         feedbacks: [],
+        activeChoicePreview: null,
         activeChoiceEvent: null,
         activeObstacle: null,
         activeChallengeId: null,
@@ -665,6 +679,8 @@ export const useGameStore = create<GameState>((set, get) => {
         age: Math.floor(state.age),
         chapter: state.chapter,
         type: 'choice',
+        eventTitle: event.title,
+        choiceLabel: choice.label,
         title: `${event.title}：「${choice.label}」を選択`,
         detail: choice.environmentChangeReason
           ? `${finalMessage} （🌐 ${choice.environmentChangeReason}）`
@@ -674,7 +690,7 @@ export const useGameStore = create<GameState>((set, get) => {
 
       const fb: FloatingFeedback = {
         id: `fb_${Date.now()}_${Math.random()}`,
-        title: choice.label,
+        title: `「${choice.label}」を選択`,
         subtitle: finalMessage,
         deltas: appliedDeltas,
         color: isRiskFailure ? '#f87171' : choice.color,
@@ -692,7 +708,8 @@ export const useGameStore = create<GameState>((set, get) => {
         usedEventIds: Array.from(new Set([...state.usedEventIds, event.id])),
         recentEncounterIds: [...state.recentEncounterIds.slice(-5), event.id],
         history: [...state.history, logItem],
-        feedbacks: [...state.feedbacks.slice(-2), fb, ...extraFeedbacks].slice(-4),
+        feedbacks: [...state.feedbacks.slice(-2), ...extraFeedbacks, fb].slice(-4),
+        activeChoicePreview: null,
         cameraShake: isRiskFailure ? 0.6 : state.cameraShake,
       });
 
@@ -702,6 +719,7 @@ export const useGameStore = create<GameState>((set, get) => {
     triggerChoiceFailsafe: (event) => {
       set({
         phase: 'CHOICE_FAILSAFE_MODAL',
+        activeChoicePreview: null,
         activeChoiceEvent: event,
         isBoosting: false,
       });
@@ -880,6 +898,8 @@ export const useGameStore = create<GameState>((set, get) => {
         age: Math.floor(state.age),
         chapter: state.chapter,
         type: 'recovery',
+        eventTitle: obs.title,
+        choiceLabel: opt.label,
         title: `対処・再起の選択：「${opt.label}」`,
         detail: opt.environmentChangeReason
           ? `${opt.resultMessage} （🌐 ${opt.environmentChangeReason}）`
@@ -889,7 +909,7 @@ export const useGameStore = create<GameState>((set, get) => {
 
       const fb: FloatingFeedback = {
         id: `fb_rec_${Date.now()}`,
-        title: `決断：${opt.label}`,
+        title: `「${opt.label}」を選択`,
         subtitle: opt.resultMessage,
         deltas: appliedDeltas,
         color: '#34d399',
@@ -907,7 +927,7 @@ export const useGameStore = create<GameState>((set, get) => {
         utilizedSupports: nextSupports,
         overcomeHardships: nextHardships,
         history: [...state.history, logItem],
-        feedbacks: [...state.feedbacks.slice(-2), fb, ...extraFeedbacks].slice(-4),
+        feedbacks: [...state.feedbacks.slice(-2), ...extraFeedbacks, fb].slice(-4),
         skyDarkness: 0,
       });
 
@@ -1348,6 +1368,7 @@ export const useGameStore = create<GameState>((set, get) => {
             ? data.triggeredChallengeIds
             : [],
           history: Array.isArray(data.history) ? data.history : [],
+          activeChoicePreview: null,
           activeChoiceEvent: null,
           activeObstacle: null,
           activeChallengeId: null,
@@ -1367,7 +1388,7 @@ export const useGameStore = create<GameState>((set, get) => {
       }
       if (state.feedbacks.length > 0) {
         const now = Date.now();
-        const maxDuration = state.flightBounds.isMobile ? 1500 : 3000;
+        const maxDuration = 2000;
         const filtered = state.feedbacks.filter((f) => now - f.createdAt < maxDuration);
         if (filtered.length !== state.feedbacks.length) {
           set({ feedbacks: filtered });

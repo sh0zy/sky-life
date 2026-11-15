@@ -73,9 +73,9 @@ html, body, #root {
 }
 
 .animate-float-up {
-  animation: floatUp 2.6s ease-out forwards;
+  animation: floatUp 2.0s ease-out forwards;
 }
 
 .animate-mobile-toast {
-  animation: subtleToastFade 1.5s ease-out forwards;
+  animation: subtleToastFade 2.0s ease-out forwards;
 }

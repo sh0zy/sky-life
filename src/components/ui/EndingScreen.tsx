@@ -2,6 +2,17 @@ import React, { useState } from 'react';
 import { useGameStore, evaluateLifeTitle } from '../../store/useGameStore';
 import { formatStatNumber, getStatBarProgress } from '../../utils/statSystem';
 import { getLifeDifficultyBandInfo } from '../../utils/socialSimulation';
+import { StatDelta } from '../../types/game';
+
+const DELTA_LABELS: Record<keyof StatDelta, string> = {
+  happiness: '幸福度',
+  health: '健康',
+  money: 'お金',
+  relationships: '人間関係',
+  knowledge: '知識・スキル',
+  selfActualization: '自己実現',
+  resilience: 'レジリエンス',
+};
 import {
   RotateCcw,
   Download,
@@ -340,12 +351,35 @@ export const EndingScreen: React.FC = () => {
 
         {/* Full History Toggle */}
         {showFullLog && (
-          <div className="mt-4 glass-card rounded-2xl p-4 max-h-56 overflow-y-auto space-y-2 text-left">
+          <div className="mt-4 glass-card rounded-2xl p-4 max-h-64 overflow-y-auto space-y-2 text-left">
             <div className="text-xs font-bold text-sky-300 mb-1">全選択・イベント履歴</div>
             {history.map((h) => (
-              <div key={h.id} className="text-xs border-b border-white/10 pb-1.5">
-                <span className="font-bold text-amber-300">{h.age}歳</span> —{' '}
-                <span className="font-bold text-white">{h.title}</span>：{h.detail}
+              <div key={h.id} className="text-xs border-b border-white/10 pb-2 space-y-1">
+                <div>
+                  <span className="font-bold text-amber-300">{h.age}歳</span> —{' '}
+                  <span className="font-bold text-white">{h.title}</span>：{h.detail}
+                </div>
+                {h.deltas && Object.keys(h.deltas).length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {Object.entries(h.deltas).map(([k, v]) => {
+                      if (!v) return null;
+                      const label = DELTA_LABELS[k as keyof StatDelta] || k;
+                      const isPos = v > 0;
+                      return (
+                        <span
+                          key={k}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded tabular-nums ${
+                            isPos
+                              ? 'bg-emerald-500/20 text-emerald-300'
+                              : 'bg-rose-500/20 text-rose-300'
+                          }`}
+                        >
+                          {label} {isPos ? `+${formatStatNumber(v)}` : `-${formatStatNumber(Math.abs(v))}`}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ))}
           </div>

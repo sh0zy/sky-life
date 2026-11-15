@@ -256,6 +256,8 @@ export interface HistoryLogItem {
   type: 'birth' | 'choice' | 'forced_event' | 'obstacle' | 'recovery' | 'challenge' | 'milestone' | 'environment';
   title: string;
   detail: string;
+  eventTitle?: string;
+  choiceLabel?: string;
   deltas?: StatDelta;
 }
 
@@ -266,6 +268,11 @@ export interface FloatingFeedback {
   deltas: StatDelta;
   color: string;
   createdAt: number;
+}
+
+export interface ActiveChoicePreview {
+  event: LifeEventDef;
+  targetedIndex: number;
 }
 
 export type GamePhase =

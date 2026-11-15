@@ -252,9 +252,18 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
 
   const [currentEncounter, setCurrentEncounter] = useState<EncounterData | null>(null);
   const [hoveredGateIndex, setHoveredGateIndex] = useState<number>(0);
+  const [showGateSignpost, setShowGateSignpost] = useState<boolean>(true);
 
   const phase = useGameStore((s) => s.phase);
   const flightBounds = useGameStore((s) => s.flightBounds);
+
+  const computeGateIndexForX = (px: number, hasCenter: boolean, corridorHalfWidth: number) => {
+    const splitX = corridorHalfWidth / 3;
+    if (hasCenter) {
+      return px < -splitX ? 0 : px <= splitX ? 1 : 2;
+    }
+    return px <= 0 ? 0 : 1;
+  };
 
   const spawnNextEncounter = () => {
     const store = useGameStore.getState();
@@ -263,10 +272,11 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
     const weights = store.schedulerWeights;
     const bounds = store.flightBounds;
 
-    // Spawn distance adjusted by difficulty & device so players have ample time to read options from afar
+    // Spawn distance linked to difficulty, device, and boost speed so players always have 6.5s-8.0s of reading time
     const baseStartZ =
-      store.difficulty === 'EASY' ? -125 : store.difficulty === 'HARD' ? -105 : -115;
-    const startZ = bounds.isMobile ? baseStartZ - 6 : baseStartZ;
+      store.difficulty === 'EASY' ? -146 : store.difficulty === 'HARD' ? -122 : -134;
+    const boostExtraZ = store.isBoosting ? -24 : 0;
+    const startZ = (bounds.isMobile ? baseStartZ - 4 : baseStartZ) + boostExtraZ;
 
     // 1. Check Turning Point Challenge Portals first
     if (age >= 15.5 && !store.triggeredChallengeIds.includes('exam')) {
@@ -274,6 +284,8 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
       prevZRef.current = startZ;
       zPosRef.current = startZ;
       resolvedCurrentRef.current = false;
+      setShowGateSignpost(true);
+      store.setActiveChoicePreview(null);
       setCurrentEncounter({
         type: 'portal',
         challengeId: 'exam',
@@ -288,6 +300,8 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
       prevZRef.current = startZ;
       zPosRef.current = startZ;
       resolvedCurrentRef.current = false;
+      setShowGateSignpost(true);
+      store.setActiveChoicePreview(null);
       setCurrentEncounter({
         type: 'portal',
         challengeId: 'career',
@@ -302,6 +316,8 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
       prevZRef.current = startZ;
       zPosRef.current = startZ;
       resolvedCurrentRef.current = false;
+      setShowGateSignpost(true);
+      store.setActiveChoicePreview(null);
       setCurrentEncounter({
         type: 'portal',
         challengeId: 'crossroads',
@@ -326,6 +342,17 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
       prevZRef.current = startZ;
       zPosRef.current = startZ;
       resolvedCurrentRef.current = false;
+      const initIdx = computeGateIndexForX(
+        playerPosRef.current.x,
+        Boolean(causalChainEvent.centerChoice),
+        bounds.corridorHalfWidth
+      );
+      setHoveredGateIndex(initIdx);
+      setShowGateSignpost(true);
+      store.setActiveChoicePreview({
+        event: causalChainEvent,
+        targetedIndex: initIdx,
+      });
       setCurrentEncounter({
         type: 'choice',
         event: causalChainEvent,
@@ -396,6 +423,8 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
       prevZRef.current = startZ;
       zPosRef.current = startZ;
       resolvedCurrentRef.current = false;
+      setShowGateSignpost(true);
+      store.setActiveChoicePreview(null);
       setCurrentEncounter({
         type: 'forced_event',
         obstacle: chosenForced,
@@ -439,6 +468,8 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
       prevZRef.current = startZ;
       zPosRef.current = startZ;
       resolvedCurrentRef.current = false;
+      setShowGateSignpost(true);
+      store.setActiveChoicePreview(null);
       setCurrentEncounter({
         type: 'avoidable_obstacle',
         obstacle: chosenObs,
@@ -522,6 +553,17 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
     prevZRef.current = startZ;
     zPosRef.current = startZ;
     resolvedCurrentRef.current = false;
+    const initIdx = computeGateIndexForX(
+      playerPosRef.current.x,
+      Boolean(chosenEvent.centerChoice),
+      bounds.corridorHalfWidth
+    );
+    setHoveredGateIndex(initIdx);
+    setShowGateSignpost(true);
+    store.setActiveChoicePreview({
+      event: chosenEvent,
+      targetedIndex: initIdx,
+    });
     setCurrentEncounter({
       type: 'choice',
       event: chosenEvent,
@@ -548,10 +590,19 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
 
     const bounds = store.flightBounds;
 
-    // Speed scales with difficulty so EASY gives longer reading time and HARD is brisk
+    // Speed scales with difficulty & encounter type so players always have ample reading time for choices
     const diffSpeedMult =
-      store.difficulty === 'EASY' ? 0.82 : store.difficulty === 'HARD' ? 1.18 : 1.0;
-    const baseSpeed = store.isBoosting ? 38 : 22;
+      store.difficulty === 'EASY' ? 0.82 : store.difficulty === 'HARD' ? 1.15 : 1.0;
+    const isChoiceEncounter = currentEncounter.type === 'choice';
+    const baseSpeed = store.isBoosting
+      ? isChoiceEncounter
+        ? 31
+        : 36
+      : isChoiceEncounter
+      ? bounds.isMobile
+        ? 18.5
+        : 20.0
+      : 22.0;
     const flightSpeed = baseSpeed * diffSpeedMult;
 
     prevZRef.current = zPosRef.current;
@@ -561,8 +612,14 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
       encounterGroupRef.current.position.z = zPosRef.current;
     }
 
-    // Dynamic gate split threshold matched 100% to current screen's corridorHalfWidth!
-    const splitX = bounds.corridorHalfWidth * 0.335;
+    // Hide 3D floating signpost in the final 15 units before z = 0 so it never scales up over HUD or controls
+    const shouldShowSignpost = zPosRef.current <= -15;
+    if (shouldShowSignpost !== showGateSignpost) {
+      setShowGateSignpost(shouldShowSignpost);
+    }
+
+    // Exact 1/3 partition threshold matched 100% to 3D gate boundaries (`±corridorHalfWidth / 3`)
+    const splitX = bounds.corridorHalfWidth / 3;
 
     // Update live highlighted gate index based on player's X position so visual & collision match 100%
     if (currentEncounter.type === 'choice') {
@@ -577,8 +634,16 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
         : px <= 0
         ? 0
         : 1;
-      if (nextIdx !== hoveredGateIndex) {
+      if (
+        nextIdx !== hoveredGateIndex ||
+        !store.activeChoicePreview ||
+        store.activeChoicePreview.targetedIndex !== nextIdx
+      ) {
         setHoveredGateIndex(nextIdx);
+        store.setActiveChoicePreview({
+          event: currentEncounter.event,
+          targetedIndex: nextIdx,
+        });
       }
     }
 
@@ -629,7 +694,8 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
           Math.abs(py) > 6.5
         ) {
           setCurrentEncounter(null);
-          cooldownRef.current = 1.2;
+          cooldownRef.current = 2.1;
+          store.setActiveChoicePreview(null);
           store.triggerChoiceFailsafe(ev);
           return;
         }
@@ -648,7 +714,8 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
         }
 
         setCurrentEncounter(null);
-        cooldownRef.current = 1.2;
+        cooldownRef.current = 2.1;
+        store.setActiveChoicePreview(null);
         store.applyChoice(ev, chosenOption);
         return;
       }
@@ -657,7 +724,8 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
         resolvedCurrentRef.current = true;
         const cid = currentEncounter.challengeId;
         setCurrentEncounter(null);
-        cooldownRef.current = 1.5;
+        cooldownRef.current = 2.1;
+        store.setActiveChoicePreview(null);
         store.enterChallengePortal(cid);
         return;
       }
@@ -666,7 +734,8 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
         resolvedCurrentRef.current = true;
         const obs = currentEncounter.obstacle;
         setCurrentEncounter(null);
-        cooldownRef.current = 1.4;
+        cooldownRef.current = 2.1;
+        store.setActiveChoicePreview(null);
         store.triggerObstacleHit(obs);
         return;
       }
@@ -692,14 +761,16 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
           resolvedCurrentRef.current = true;
           const obs = currentEncounter.obstacle;
           setCurrentEncounter(null);
-          cooldownRef.current = 1.4;
+          cooldownRef.current = 2.1;
+          store.setActiveChoicePreview(null);
           store.triggerObstacleHit(obs);
           return;
         } else if (zPosRef.current > 1.6) {
           resolvedCurrentRef.current = true;
           const obs = currentEncounter.obstacle;
           setCurrentEncounter(null);
-          cooldownRef.current = 1.1;
+          cooldownRef.current = 2.1;
+          store.setActiveChoicePreview(null);
           store.applyObstacleDodge(obs);
           return;
         }
@@ -709,24 +780,25 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
     // Secondary Failsafe: if a choice or forced event somehow reached z > 3 without resolving, force modal!
     if (!resolvedCurrentRef.current && zPosRef.current > 3.0) {
       resolvedCurrentRef.current = true;
+      store.setActiveChoicePreview(null);
       if (currentEncounter.type === 'choice') {
         const ev = currentEncounter.event;
         setCurrentEncounter(null);
-        cooldownRef.current = 1.2;
+        cooldownRef.current = 2.1;
         store.triggerChoiceFailsafe(ev);
         return;
       }
       if (currentEncounter.type === 'forced_event') {
         const obs = currentEncounter.obstacle;
         setCurrentEncounter(null);
-        cooldownRef.current = 1.4;
+        cooldownRef.current = 2.1;
         store.triggerObstacleHit(obs);
         return;
       }
       if (currentEncounter.type === 'avoidable_obstacle') {
         const obs = currentEncounter.obstacle;
         setCurrentEncounter(null);
-        cooldownRef.current = 1.1;
+        cooldownRef.current = 2.1;
         store.applyObstacleDodge(obs);
         return;
       }
@@ -743,55 +815,42 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
     const isThree = options.length === 3;
     const halfW = flightBounds.corridorHalfWidth;
     const isMobile = flightBounds.isMobile;
-    const isPortrait = flightBounds.isMobilePortrait;
 
-    // Gate widths and positions dynamically span [-halfW * 1.1, +halfW * 1.1] so visual pillars
-    // align with the exact selection thresholds (`±halfW * 0.335` for 3 choices, `0` for 2 choices).
-    const gateWidth = isThree ? halfW * 0.67 : halfW * 1.04;
-    const gateHeight = isMobile ? 9.6 : 11.6;
+    // Exact partition of [-halfW, +halfW] with zero gaps and 100% alignment to collision thresholds:
+    // - 2 choices: Left [-halfW, 0] (center -0.5*halfW), Right [0, +halfW] (center +0.5*halfW)
+    // - 3 choices: Left [-halfW, -halfW/3] (center -2/3*halfW), Center [-halfW/3, +halfW/3] (center 0), Right [+halfW/3, +halfW] (center +2/3*halfW)
+    const gateWidth = isThree ? (halfW * 2) / 3 : halfW;
+    const gateHeight = isMobile ? 7.8 : 10.6;
     const xPositions = isThree
-      ? [-halfW * 0.67, 0, halfW * 0.67]
-      : [-halfW * 0.52, halfW * 0.52];
-    const totalBarrierWidth = halfW * 2.35;
-    const headerY = isMobile ? 4.8 : 6.9;
-    const distFactor = isPortrait ? 38 : isMobile ? 35 : 34;
+      ? [-halfW * (2 / 3), 0, halfW * (2 / 3)]
+      : [-halfW * 0.5, halfW * 0.5];
+    const totalBarrierWidth = halfW * 2.06;
+    const routeBadges = isThree
+      ? ['① 左', '② 中央', '③ 右']
+      : ['① 左', '② 右'];
+
+    // Exact perspective distanceFactor formula so each 3D gate's HTML signpost is strictly <= 72%
+    // of the 3D gate's projected pixel width at EVERY depth z, guaranteeing zero horizontal overlap!
+    const signpostCssWidth = isMobile ? 68 : 176;
+    const signpostDistFactor =
+      (0.72 * gateWidth * flightBounds.viewportHeight) / signpostCssWidth;
 
     return (
       <group>
         {/* Top & Bottom Energy Barrier Beams sealing the entire sky corridor */}
-        <mesh position={[0, isMobile ? 5.2 : 6.6, 0]}>
-          <boxGeometry args={[totalBarrierWidth, 0.4, 0.6]} />
+        <mesh position={[0, isMobile ? 4.6 : 6.0, 0]}>
+          <boxGeometry args={[totalBarrierWidth, 0.36, 0.55]} />
           <meshStandardMaterial color="#38bdf8" emissive="#0284c7" emissiveIntensity={0.8} />
         </mesh>
-        <mesh position={[0, isMobile ? -3.8 : -4.9, 0]}>
-          <boxGeometry args={[totalBarrierWidth, 0.4, 0.6]} />
+        <mesh position={[0, isMobile ? -3.2 : -4.6, 0]}>
+          <boxGeometry args={[totalBarrierWidth, 0.36, 0.55]} />
           <meshStandardMaterial color="#38bdf8" emissive="#0284c7" emissiveIntensity={0.8} />
         </mesh>
-
-        {/* Event Category & Title Header */}
-        <Html position={[0, headerY, 0]} center distanceFactor={distFactor} zIndexRange={[10, 0]}>
-          <div
-            className={`pointer-events-none select-none rounded-full bg-slate-950/92 border-2 border-sky-400/70 text-center shadow-2xl ${
-              isMobile ? 'px-3.5 py-1 max-w-[290px]' : 'whitespace-nowrap px-6 py-2'
-            }`}
-          >
-            <div className="text-[10px] md:text-xs font-black tracking-wider text-amber-300 uppercase truncate">
-              {ev.kind === 'chance_risk'
-                ? '🎲 D. チャンスとリスク（回避不可）'
-                : '⚖️ A. 必須選択ゲート（回避不可）'}
-            </div>
-            <div className="text-sm md:text-2xl font-black text-white mt-0.5 leading-tight">
-              {ev.title}
-            </div>
-          </div>
-        </Html>
 
         {options.map((opt, idx) => {
           const isTargeted = hoveredGateIndex === idx;
           const xPos = xPositions[idx];
-          // On narrow portrait screens with 3 choices, slightly stagger the center card vertically
-          // so the 3 cards never overlap horizontally while remaining 100% readable!
-          const cardYOffset = isPortrait && isThree ? (idx === 1 ? 1.15 : -0.45) : 0;
+          const routeBadge = routeBadges[idx];
 
           return (
             <group key={opt.id} position={[xPos, 0.7, 0]}>
@@ -801,119 +860,82 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
                 <meshBasicMaterial
                   color={opt.color}
                   transparent
-                  opacity={isTargeted ? 0.36 : 0.15}
+                  opacity={isTargeted ? 0.36 : 0.14}
                 />
               </mesh>
 
               {/* Glowing Gate Pillar Borders */}
               <mesh position={[-gateWidth / 2, 0, 0]}>
-                <boxGeometry args={[0.18, gateHeight, 0.45]} />
+                <boxGeometry args={[0.16, gateHeight, 0.45]} />
                 <meshStandardMaterial
                   color={opt.color}
                   emissive={opt.color}
-                  emissiveIntensity={isTargeted ? 1.1 : 0.45}
+                  emissiveIntensity={isTargeted ? 1.15 : 0.45}
                 />
               </mesh>
               <mesh position={[gateWidth / 2, 0, 0]}>
-                <boxGeometry args={[0.18, gateHeight, 0.45]} />
+                <boxGeometry args={[0.16, gateHeight, 0.45]} />
                 <meshStandardMaterial
                   color={opt.color}
                   emissive={opt.color}
-                  emissiveIntensity={isTargeted ? 1.1 : 0.45}
+                  emissiveIntensity={isTargeted ? 1.15 : 0.45}
                 />
               </mesh>
 
-              {/* High-Visibility Early Preview Card (Adapted for Mobile vs PC) */}
-              <Html
-                position={[0, cardYOffset, 0]}
-                center
-                distanceFactor={distFactor}
-                zIndexRange={[10, 0]}
-              >
-                {isMobile ? (
-                  <div
-                    className={`pointer-events-none select-none rounded-xl text-center shadow-2xl border-2 transition-transform ${
-                      isPortrait
-                        ? isThree
-                          ? 'w-[106px] p-1.5'
-                          : 'w-[138px] p-2'
-                        : isThree
-                        ? 'w-[156px] p-2'
-                        : 'w-[190px] p-2.5'
-                    } ${isTargeted ? 'scale-105 ring-2 ring-amber-300' : 'opacity-85'}`}
-                    style={{
-                      backgroundColor: 'rgba(15, 23, 42, 0.94)',
-                      borderColor: opt.color,
-                    }}
-                  >
-                    {isTargeted && (
-                      <div className="mb-0.5 inline-block px-1.5 py-0.2 rounded-full text-[9px] font-black bg-amber-400 text-slate-950">
-                        🎯 進路中
+              {/* Non-overlapping 3D Route Signpost inside the gate frame (linked 1-to-1 with Top Choice Route Cards) */}
+              {showGateSignpost && (
+                <Html
+                  position={[0, -0.35, 0]}
+                  center
+                  distanceFactor={signpostDistFactor}
+                  zIndexRange={[10, 0]}
+                >
+                  {isMobile ? (
+                    <div
+                      data-testid={`choice-gate-card-${opt.id}`}
+                      style={{
+                        width: `${signpostCssWidth}px`,
+                        backgroundColor: 'rgba(15, 23, 42, 0.94)',
+                        borderColor: opt.color,
+                      }}
+                      className={`pointer-events-none select-none rounded-xl p-1 text-center shadow-xl border-2 overflow-hidden ${
+                        isTargeted ? 'ring-2 ring-amber-300' : 'opacity-90'
+                      }`}
+                    >
+                      <div
+                        className="text-[9px] font-black text-slate-950 rounded px-1 py-0.2 leading-tight truncate"
+                        style={{ backgroundColor: opt.color }}
+                      >
+                        {routeBadge}
                       </div>
-                    )}
-                    <div className="text-lg leading-none mb-0.5">{opt.icon}</div>
-                    <div className="text-[11px] font-black text-white leading-tight line-clamp-2">
-                      {opt.label}
+                      <div className="text-base leading-none mt-0.5">{opt.icon}</div>
                     </div>
-                    <div className="mt-1 space-y-0.5 text-left bg-slate-900/90 p-1 rounded-lg border border-white/10">
-                      <div className="text-[9px] font-bold text-emerald-300 leading-tight line-clamp-2">
-                        ⭕ {opt.prosText}
+                  ) : (
+                    <div
+                      data-testid={`choice-gate-card-${opt.id}`}
+                      style={{
+                        width: `${signpostCssWidth}px`,
+                        backgroundColor: 'rgba(15, 23, 42, 0.94)',
+                        borderColor: opt.color,
+                      }}
+                      className={`pointer-events-none select-none rounded-2xl p-2 text-center shadow-2xl border-2 overflow-hidden ${
+                        isTargeted ? 'ring-2 ring-amber-300' : 'opacity-90'
+                      }`}
+                    >
+                      <div
+                        className="text-[10px] font-black text-slate-950 rounded-full px-2 py-0.5 leading-tight inline-block"
+                        style={{ backgroundColor: opt.color }}
+                      >
+                        {routeBadge}ルート {isTargeted ? '🎯' : ''}
                       </div>
-                      <div className="text-[9px] font-bold text-rose-300 leading-tight line-clamp-2">
-                        ⚠️ {opt.consText}
+                      <div className="text-xl leading-none mt-1">{opt.icon}</div>
+                      <div className="text-xs font-black text-white leading-snug mt-1 break-words">
+                        {opt.label}
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <div
-                    className={`pointer-events-none select-none w-64 md:w-72 p-4 rounded-2xl text-center shadow-2xl border-2 transition-transform ${
-                      isTargeted ? 'scale-105 ring-4 ring-white/50' : 'opacity-90'
-                    }`}
-                    style={{
-                      backgroundColor: 'rgba(15, 23, 42, 0.94)',
-                      borderColor: opt.color,
-                    }}
-                  >
-                    {isTargeted && (
-                      <div className="mb-1 inline-block px-3 py-0.5 rounded-full text-[11px] font-black bg-amber-400 text-slate-950">
-                        🎯 現在の進路（この選択肢へ突入）
-                      </div>
-                    )}
-                    <div className="text-3xl mb-1">{opt.icon}</div>
-                    <div className="text-base md:text-lg font-black text-white leading-snug">
-                      {opt.label}
-                    </div>
-                    <div className="text-xs text-slate-300 mt-0.5">{opt.subLabel}</div>
-
-                    {/* Pros & Cons Forecast */}
-                    <div className="mt-2.5 space-y-1 text-left bg-slate-900/90 p-2.5 rounded-xl border border-white/10">
-                      <div className="text-xs font-extrabold text-emerald-300 leading-tight">
-                        ⭕ メリット: {opt.prosText}
-                      </div>
-                      <div className="text-xs font-extrabold text-rose-300 leading-tight">
-                        ⚠️ 代償/リスク: {opt.consText}
-                      </div>
-                      {opt.riskBadge && (
-                        <div className="text-[11px] font-black text-amber-300 pt-0.5">
-                          {opt.riskBadge}
-                        </div>
-                      )}
-                      {(opt.supportUsedLabel || opt.environmentDifficultyMod) && (
-                        <div className="text-[11px] font-black text-sky-300 pt-0.5">
-                          🏛️ {opt.supportUsedLabel || '社会環境変化'}{' '}
-                          {opt.environmentDifficultyMod
-                            ? `（環境難易度 ${
-                                opt.environmentDifficultyMod > 0
-                                  ? `+${opt.environmentDifficultyMod}`
-                                  : opt.environmentDifficultyMod
-                              }）`
-                            : ''}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </Html>
+                  )}
+                </Html>
+              )}
             </group>
           );
         })}
@@ -938,48 +960,56 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
               roughness={0.3}
             />
           </mesh>
-          <Html
-            position={[0, 1.5, 0]}
-            center
-            distanceFactor={flightBounds.isMobile ? 38 : 34}
-            zIndexRange={[10, 0]}
-          >
-            <div className="pointer-events-none select-none w-64 md:w-96 p-3.5 md:p-5 rounded-3xl bg-rose-950/95 border-2 border-amber-400 text-center shadow-2xl">
-              <div className="text-[10px] md:text-xs font-black text-amber-300 uppercase tracking-widest">
-                ⚡ {currentEncounter.obstacle.categoryLabel}（回避不可）
+          {showGateSignpost && (
+            <Html
+              position={[0, 1.1, 0]}
+              center
+              distanceFactor={
+                (0.84 * flightBounds.corridorHalfWidth * 2 * flightBounds.viewportHeight) / 256
+              }
+              zIndexRange={[10, 0]}
+            >
+              <div className="pointer-events-none select-none w-64 md:w-88 p-3 md:p-4 rounded-3xl bg-rose-950/95 border-2 border-amber-400 text-center shadow-2xl">
+                <div className="text-[10px] md:text-xs font-black text-amber-300 uppercase tracking-widest">
+                  ⚡ {currentEncounter.obstacle.categoryLabel}（回避不可）
+                </div>
+                <div className="text-sm md:text-xl font-black text-white mt-1">
+                  {currentEncounter.obstacle.title}
+                </div>
+                <div className="text-[11px] md:text-xs text-rose-200 mt-1">
+                  {currentEncounter.obstacle.subtitle}
+                </div>
+                <div className="mt-1 inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-amber-200">
+                  到達時に対処方法を選択します
+                </div>
               </div>
-              <div className="text-base md:text-2xl font-black text-white mt-1">
-                {currentEncounter.obstacle.title}
-              </div>
-              <div className="text-[11px] md:text-sm text-rose-200 mt-1">
-                {currentEncounter.obstacle.subtitle}
-              </div>
-              <div className="mt-1.5 inline-block px-2.5 py-0.5 rounded-full text-[10px] md:text-xs font-bold bg-white/15 text-amber-200">
-                到達時に飛行が一時停止し、対処方法を選択します
-              </div>
-            </div>
-          </Html>
+            </Html>
+          )}
         </group>
       )}
 
       {/* ==================== 3. TYPE C: MULTI-NODE AVOIDABLE 3D OBSTACLES ==================== */}
       {currentEncounter.type === 'avoidable_obstacle' && (
         <group>
-          <Html
-            position={[0, flightBounds.isMobile ? 4.6 : 6.2, 0]}
-            center
-            distanceFactor={flightBounds.isMobile ? 38 : 34}
-            zIndexRange={[10, 0]}
-          >
-            <div className="pointer-events-none select-none w-64 md:w-80 p-2 md:p-3 rounded-2xl bg-slate-950/90 border-2 border-red-400 text-center shadow-2xl">
-              <div className="text-[10px] md:text-xs font-extrabold text-red-300 uppercase">
-                🌪️ {currentEncounter.obstacle.categoryLabel}（隙間へ回避せよ！）
+          {showGateSignpost && (
+            <Html
+              position={[0, flightBounds.isMobile ? 3.8 : 5.6, 0]}
+              center
+              distanceFactor={
+                (0.84 * flightBounds.corridorHalfWidth * 2 * flightBounds.viewportHeight) / 256
+              }
+              zIndexRange={[10, 0]}
+            >
+              <div className="pointer-events-none select-none w-64 md:w-80 p-2 md:p-3 rounded-2xl bg-slate-950/90 border-2 border-red-400 text-center shadow-2xl">
+                <div className="text-[10px] md:text-xs font-extrabold text-red-300 uppercase">
+                  🌪️ {currentEncounter.obstacle.categoryLabel}（隙間へ回避せよ！）
+                </div>
+                <div className="text-xs md:text-lg font-black text-white mt-0.5">
+                  {currentEncounter.obstacle.title}
+                </div>
               </div>
-              <div className="text-xs md:text-lg font-black text-white mt-0.5">
-                {currentEncounter.obstacle.title}
-              </div>
-            </div>
-          </Html>
+            </Html>
+          )}
 
           {currentEncounter.nodes.map((node, idx) => (
             <group
@@ -1027,24 +1057,28 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
               side={THREE.DoubleSide}
             />
           </mesh>
-          <Html
-            position={[0, 0, 0]}
-            center
-            distanceFactor={flightBounds.isMobile ? 35 : 30}
-            zIndexRange={[10, 0]}
-          >
-            <div className="pointer-events-none select-none w-64 md:w-80 p-3 md:p-4 rounded-3xl bg-indigo-950/90 border-2 border-amber-300 text-center shadow-2xl">
-              <div className="text-[10px] md:text-xs font-black tracking-widest text-amber-300 uppercase">
-                ✨ SPECIAL TURNING POINT ✨
+          {showGateSignpost && (
+            <Html
+              position={[0, 0, 0]}
+              center
+              distanceFactor={
+                (0.84 * flightBounds.corridorHalfWidth * 2 * flightBounds.viewportHeight) / 256
+              }
+              zIndexRange={[10, 0]}
+            >
+              <div className="pointer-events-none select-none w-64 md:w-80 p-3 md:p-4 rounded-3xl bg-indigo-950/90 border-2 border-amber-300 text-center shadow-2xl">
+                <div className="text-[10px] md:text-xs font-black tracking-widest text-amber-300 uppercase">
+                  ✨ SPECIAL TURNING POINT ✨
+                </div>
+                <div className="text-base md:text-xl font-black text-white mt-1">
+                  {currentEncounter.title}
+                </div>
+                <div className="text-xs md:text-sm text-sky-200 mt-1 font-bold">
+                  「{currentEncounter.subtitle}」へ突入！
+                </div>
               </div>
-              <div className="text-base md:text-xl font-black text-white mt-1">
-                {currentEncounter.title}
-              </div>
-              <div className="text-xs md:text-sm text-sky-200 mt-1 font-bold">
-                「{currentEncounter.subtitle}」へ突入！
-              </div>
-            </div>
-          </Html>
+            </Html>
+          )}
         </group>
       )}
     </group>
