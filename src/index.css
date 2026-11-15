@@ -72,10 +72,33 @@ html, body, #root {
   }
 }
 
+@keyframes slimEventBanner {
+  0% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  12% {
+    opacity: 0.95;
+    transform: translateY(0px);
+  }
+  65% {
+    opacity: 0.92;
+    transform: translateY(0px);
+  }
+  100% {
+    opacity: 0.45;
+    transform: translateY(-1px) scale(0.96);
+  }
+}
+
 .animate-float-up {
   animation: floatUp 2.0s ease-out forwards;
 }
 
 .animate-mobile-toast {
   animation: subtleToastFade 2.0s ease-out forwards;
+}
+
+.animate-slim-event-banner {
+  animation: slimEventBanner 2.8s ease-out forwards;
 }

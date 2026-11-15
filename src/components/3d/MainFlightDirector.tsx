@@ -272,10 +272,10 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
     const weights = store.schedulerWeights;
     const bounds = store.flightBounds;
 
-    // Spawn distance linked to difficulty, device, and boost speed so players always have 6.5s-8.0s of reading time
+    // Spawn distance linked to difficulty, device, and boost speed so distant 3D gates are legible early with ample decision time
     const baseStartZ =
-      store.difficulty === 'EASY' ? -146 : store.difficulty === 'HARD' ? -122 : -134;
-    const boostExtraZ = store.isBoosting ? -24 : 0;
+      store.difficulty === 'EASY' ? -118 : store.difficulty === 'HARD' ? -98 : -108;
+    const boostExtraZ = store.isBoosting ? -20 : 0;
     const startZ = (bounds.isMobile ? baseStartZ - 4 : baseStartZ) + boostExtraZ;
 
     // 1. Check Turning Point Challenge Portals first
@@ -829,11 +829,13 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
       ? ['① 左', '② 中央', '③ 右']
       : ['① 左', '② 右'];
 
-    // Exact perspective distanceFactor formula so each 3D gate's HTML signpost is strictly <= 72%
-    // of the 3D gate's projected pixel width at EVERY depth z, guaranteeing zero horizontal overlap!
-    const signpostCssWidth = isMobile ? 68 : 176;
+    // Exact perspective distanceFactor formula guaranteeing zero horizontal/vertical overlap at EVERY depth z:
+    // - On mobile 3-choice, center card is staggered higher (y=+1.85) vs left/right (y=-0.95), allowing 1.65x larger readable cards!
+    // - Otherwise 0.86x keeps every card strictly inside its own gate frame.
+    const signpostCssWidth = isMobile ? (isThree ? 104 : 136) : isThree ? 176 : 204;
+    const fillRatio = isMobile && isThree ? 1.65 : 0.86;
     const signpostDistFactor =
-      (0.72 * gateWidth * flightBounds.viewportHeight) / signpostCssWidth;
+      (fillRatio * gateWidth * flightBounds.viewportHeight) / signpostCssWidth;
 
     return (
       <group>
@@ -851,6 +853,7 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
           const isTargeted = hoveredGateIndex === idx;
           const xPos = xPositions[idx];
           const routeBadge = routeBadges[idx];
+          const cardYOffset = isMobile && isThree ? (idx === 1 ? 1.85 : -0.95) : -0.35;
 
           return (
             <group key={opt.id} position={[xPos, 0.7, 0]}>
@@ -882,10 +885,10 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
                 />
               </mesh>
 
-              {/* Non-overlapping 3D Route Signpost inside the gate frame (linked 1-to-1 with Top Choice Route Cards) */}
+              {/* Minimalist Non-overlapping 3D Gate Choice Signpost (icon + short title only, zero foreground cards) */}
               {showGateSignpost && (
                 <Html
-                  position={[0, -0.35, 0]}
+                  position={[0, cardYOffset, 0]}
                   center
                   distanceFactor={signpostDistFactor}
                   zIndexRange={[10, 0]}
@@ -895,41 +898,48 @@ export const MainFlightDirector: React.FC<MainFlightDirectorProps> = ({ playerPo
                       data-testid={`choice-gate-card-${opt.id}`}
                       style={{
                         width: `${signpostCssWidth}px`,
-                        backgroundColor: 'rgba(15, 23, 42, 0.94)',
+                        backgroundColor: 'rgba(15, 23, 42, 0.92)',
                         borderColor: opt.color,
                       }}
-                      className={`pointer-events-none select-none rounded-xl p-1 text-center shadow-xl border-2 overflow-hidden ${
-                        isTargeted ? 'ring-2 ring-amber-300' : 'opacity-90'
+                      className={`pointer-events-none select-none rounded-xl px-1.5 py-1 text-center shadow-xl border-2 overflow-hidden ${
+                        isTargeted ? 'ring-2 ring-amber-300' : 'opacity-92'
                       }`}
                     >
-                      <div
-                        className="text-[9px] font-black text-slate-950 rounded px-1 py-0.2 leading-tight truncate"
-                        style={{ backgroundColor: opt.color }}
-                      >
-                        {routeBadge}
+                      <div className="flex items-center justify-center gap-1">
+                        <span
+                          className="text-[9px] font-black text-slate-950 rounded px-1 py-0.2 leading-tight shrink-0"
+                          style={{ backgroundColor: opt.color }}
+                        >
+                          {routeBadge}
+                        </span>
+                        <span className="text-sm leading-none">{opt.icon}</span>
                       </div>
-                      <div className="text-base leading-none mt-0.5">{opt.icon}</div>
+                      <div className="text-[12px] font-black text-white leading-tight mt-1 line-clamp-2 break-words">
+                        {opt.label}
+                      </div>
                     </div>
                   ) : (
                     <div
                       data-testid={`choice-gate-card-${opt.id}`}
                       style={{
                         width: `${signpostCssWidth}px`,
-                        backgroundColor: 'rgba(15, 23, 42, 0.94)',
+                        backgroundColor: 'rgba(15, 23, 42, 0.92)',
                         borderColor: opt.color,
                       }}
                       className={`pointer-events-none select-none rounded-2xl p-2 text-center shadow-2xl border-2 overflow-hidden ${
-                        isTargeted ? 'ring-2 ring-amber-300' : 'opacity-90'
+                        isTargeted ? 'ring-2 ring-amber-300' : 'opacity-92'
                       }`}
                     >
-                      <div
-                        className="text-[10px] font-black text-slate-950 rounded-full px-2 py-0.5 leading-tight inline-block"
-                        style={{ backgroundColor: opt.color }}
-                      >
-                        {routeBadge}ルート {isTargeted ? '🎯' : ''}
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span
+                          className="text-[10px] font-black text-slate-950 rounded-full px-2 py-0.5 leading-tight"
+                          style={{ backgroundColor: opt.color }}
+                        >
+                          {routeBadge} {isTargeted ? '🎯' : ''}
+                        </span>
+                        <span className="text-lg leading-none">{opt.icon}</span>
                       </div>
-                      <div className="text-xl leading-none mt-1">{opt.icon}</div>
-                      <div className="text-xs font-black text-white leading-snug mt-1 break-words">
+                      <div className="text-[13px] font-black text-white leading-snug mt-1.5 line-clamp-2 break-words">
                         {opt.label}
                       </div>
                     </div>

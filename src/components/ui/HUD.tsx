@@ -336,74 +336,25 @@ export const HUD: React.FC = () => {
 
   if (phase !== 'PLAYING' && phase !== 'CHALLENGE_PLAYING') return null;
 
-  // Helper to render the 1-to-1 Top Choice Route Cards (guaranteed zero overlap via CSS Grid)
-  const renderTopChoiceRouteCards = (mode: 'portrait' | 'landscape' | 'pc') => {
+  // Helper to render ONLY a slim, low-profile event title bar at the top (foreground route cards abolished; choices are read on the 3D gates ahead)
+  const renderCompactEventTitleBar = (mode: 'portrait' | 'landscape' | 'pc') => {
     if (phase !== 'PLAYING' || !activeChoicePreview) return null;
 
     const ev = activeChoicePreview.event;
-    const options: ChoiceOption[] = ev.centerChoice
-      ? [ev.leftChoice, ev.centerChoice, ev.rightChoice]
-      : [ev.leftChoice, ev.rightChoice];
-    const isThree = options.length === 3;
-    const routeBadges = isThree
-      ? ['① 左', '② 中央', '③ 右']
-      : ['① 左', '② 右'];
+    const prefixIcon = ev.kind === 'chance_risk' ? '🎲' : '⚖️';
 
     if (mode === 'landscape') {
       return (
         <div
-          data-testid="choice-route-cards-container"
-          className="flex-1 max-w-[530px] mx-1 pointer-events-none select-none"
+          key={ev.id}
+          data-testid="choice-event-title-bar"
+          className="animate-slim-event-banner flex-1 max-w-[340px] mx-1 pointer-events-none select-none flex justify-center"
         >
-          <div className="bg-slate-950/92 border border-sky-400/60 rounded-lg px-2.5 py-0.5 mb-1 text-center shadow-lg">
-            <span className="text-[9px] font-black text-amber-300 mr-1.5">
-              {ev.kind === 'chance_risk' ? '🎲 チャンスとリスク' : '⚖️ 必須選択'}
-            </span>
-            <span className="text-[11px] font-black text-white leading-tight">
+          <div className="bg-slate-950/75 border border-sky-400/45 rounded-full px-3 py-0.5 shadow-md truncate">
+            <span className="text-[10px] mr-1">{prefixIcon}</span>
+            <span className="text-[11px] font-bold text-white leading-tight">
               {ev.title}
             </span>
-          </div>
-          <div
-            className={`grid ${
-              isThree ? 'grid-cols-3 gap-1.5' : 'grid-cols-2 gap-2'
-            } w-full`}
-          >
-            {options.map((opt, idx) => {
-              const isTargeted = activeChoicePreview.targetedIndex === idx;
-              return (
-                <div
-                  key={opt.id}
-                  data-testid={`choice-route-card-${opt.id}`}
-                  style={{
-                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                    borderColor: opt.color,
-                  }}
-                  className={`min-w-0 rounded-xl px-2 py-1 border-2 text-left shadow-xl transition-all overflow-hidden ${
-                    isTargeted ? 'ring-2 ring-amber-300' : 'opacity-92'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-1">
-                    <span
-                      className="text-[9px] font-black text-slate-950 px-1.5 py-0.2 rounded leading-tight shrink-0"
-                      style={{ backgroundColor: opt.color }}
-                    >
-                      {routeBadges[idx]}
-                    </span>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-xs leading-none">{opt.icon}</span>
-                      {isTargeted && (
-                        <span className="text-[9px] font-black bg-amber-400 text-slate-950 px-1 rounded">
-                          進路中
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-[11px] font-black text-white leading-snug break-words whitespace-normal mt-0.5">
-                    {opt.label}
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
       );
@@ -412,58 +363,15 @@ export const HUD: React.FC = () => {
     if (mode === 'portrait') {
       return (
         <div
-          data-testid="choice-route-cards-container"
-          className="w-full mt-1.5 pointer-events-none select-none"
+          key={ev.id}
+          data-testid="choice-event-title-bar"
+          className="animate-slim-event-banner w-full mt-1 pointer-events-none select-none flex justify-center"
         >
-          <div className="bg-slate-950/94 border border-sky-400/60 rounded-xl px-2.5 py-1 mb-1 text-center shadow-lg">
-            <span className="text-[9px] font-black text-amber-300 mr-1.5">
-              {ev.kind === 'chance_risk' ? '🎲 チャンスとリスク' : '⚖️ 必須選択'}
-            </span>
-            <span className="text-[11px] sm:text-xs font-black text-white leading-tight break-words">
+          <div className="bg-slate-950/75 border border-sky-400/45 rounded-full px-3 py-0.5 shadow-md max-w-[92%] truncate">
+            <span className="text-[10px] mr-1">{prefixIcon}</span>
+            <span className="text-[11px] font-bold text-white leading-tight">
               {ev.title}
             </span>
-          </div>
-          <div
-            className={`grid ${
-              isThree ? 'grid-cols-3 gap-1.5' : 'grid-cols-2 gap-2'
-            } w-full`}
-          >
-            {options.map((opt, idx) => {
-              const isTargeted = activeChoicePreview.targetedIndex === idx;
-              return (
-                <div
-                  key={opt.id}
-                  data-testid={`choice-route-card-${opt.id}`}
-                  style={{
-                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                    borderColor: opt.color,
-                  }}
-                  className={`min-w-0 rounded-xl p-1.5 sm:p-2 border-2 text-left shadow-xl transition-all overflow-hidden flex flex-col justify-start ${
-                    isTargeted ? 'ring-2 ring-amber-300' : 'opacity-92'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-1">
-                    <span
-                      className="text-[9px] sm:text-[10px] font-black text-slate-950 px-1.5 py-0.2 rounded leading-tight shrink-0"
-                      style={{ backgroundColor: opt.color }}
-                    >
-                      {routeBadges[idx]}
-                    </span>
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      <span className="text-sm leading-none">{opt.icon}</span>
-                      {isTargeted && (
-                        <span className="text-[9px] font-black bg-amber-400 text-slate-950 px-1 rounded">
-                          🎯
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-[11px] sm:text-xs font-black text-white leading-snug break-words whitespace-normal mt-1">
-                    {opt.label}
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
       );
@@ -472,65 +380,15 @@ export const HUD: React.FC = () => {
     // PC mode
     return (
       <div
-        data-testid="choice-route-cards-container"
-        className={`w-full ${isThree ? 'max-w-4xl' : 'max-w-2xl'} mx-auto pointer-events-none select-none`}
+        key={ev.id}
+        data-testid="choice-event-title-bar"
+        className="animate-slim-event-banner pointer-events-none select-none flex justify-center"
       >
-        <div className="bg-slate-950/92 border-2 border-sky-400/70 rounded-2xl px-5 py-1.5 mb-2 text-center shadow-2xl">
-          <div className="text-[11px] font-black tracking-wider text-amber-300 uppercase">
-            {ev.kind === 'chance_risk'
-              ? '🎲 D. チャンスとリスク（回避不可）'
-              : '⚖️ A. 必須選択ゲート（回避不可）'}
-          </div>
-          <div className="text-base md:text-xl font-black text-white leading-tight mt-0.5">
+        <div className="bg-slate-950/75 border border-sky-400/45 rounded-full px-4 py-1 shadow-md max-w-md truncate">
+          <span className="text-xs mr-1.5">{prefixIcon}</span>
+          <span className="text-xs md:text-sm font-bold text-white leading-tight">
             {ev.title}
-          </div>
-        </div>
-        <div
-          className={`grid ${
-            isThree ? 'grid-cols-3 gap-3' : 'grid-cols-2 gap-4'
-          } w-full`}
-        >
-          {options.map((opt, idx) => {
-            const isTargeted = activeChoicePreview.targetedIndex === idx;
-            return (
-              <div
-                key={opt.id}
-                data-testid={`choice-route-card-${opt.id}`}
-                style={{
-                  backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                  borderColor: opt.color,
-                }}
-                className={`min-w-0 rounded-2xl p-3 border-2 text-left shadow-2xl transition-all overflow-hidden ${
-                  isTargeted ? 'ring-3 ring-amber-300 scale-[1.01]' : 'opacity-92'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span
-                    className="text-xs font-black text-slate-950 px-2.5 py-0.5 rounded-full leading-tight shrink-0"
-                    style={{ backgroundColor: opt.color }}
-                  >
-                    {routeBadges[idx]}ルート
-                  </span>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {isTargeted && (
-                      <span className="text-[11px] font-black bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full">
-                        🎯 現在の進路
-                      </span>
-                    )}
-                    <span className="text-xl leading-none">{opt.icon}</span>
-                  </div>
-                </div>
-                <div className="text-sm md:text-base font-black text-white leading-snug break-words whitespace-normal mt-1.5">
-                  {opt.label}
-                </div>
-                {opt.subLabel && (
-                  <div className="text-xs text-slate-300 leading-snug break-words whitespace-normal mt-0.5">
-                    {opt.subLabel}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          </span>
         </div>
       </div>
     );
@@ -644,8 +502,8 @@ export const HUD: React.FC = () => {
             )}
           </div>
 
-          {/* Center in Landscape: Non-overlapping 1-to-1 Choice Route Cards */}
-          {flightBounds.isMobileLandscape && renderTopChoiceRouteCards('landscape')}
+          {/* Center in Landscape: Slim Event Title Only (foreground route cards abolished) */}
+          {flightBounds.isMobileLandscape && renderCompactEventTitleBar('landscape')}
 
           {/* Top-Right: Single Small Status Check Icon Button + Pause Icon Button */}
           <div className="flex items-center gap-1.5 pointer-events-auto shrink-0">
@@ -673,8 +531,8 @@ export const HUD: React.FC = () => {
           </div>
         </div>
 
-        {/* Below Top Row in Portrait: Non-overlapping 1-to-1 Choice Route Cards */}
-        {flightBounds.isMobilePortrait && renderTopChoiceRouteCards('portrait')}
+        {/* Below Top Row in Portrait: Slim Event Title Only (foreground route cards abolished) */}
+        {flightBounds.isMobilePortrait && renderCompactEventTitleBar('portrait')}
       </div>
     );
   }
@@ -979,9 +837,9 @@ export const HUD: React.FC = () => {
           })}
         </div>
 
-        {/* Center Active Choice Route Cards & Floating Choice Result Popups */}
+        {/* Center Slim Event Title & Floating Choice Result Popups */}
         <div className="flex-1 flex flex-col items-center justify-start pt-1 px-2 space-y-2 pointer-events-none">
-          {renderTopChoiceRouteCards('pc')}
+          {renderCompactEventTitleBar('pc')}
           {!activeChoicePreview &&
             feedbacks.map((fb) => (
             <div
