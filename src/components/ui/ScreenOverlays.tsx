@@ -46,7 +46,9 @@ import {
   AlertTriangle,
   Building2,
   Info,
+  Database,
 } from 'lucide-react';
+import { CountryStatsModal } from './CountryStatsModal';
 
 const DIFFICULTY_META: {
   id: DifficultyLevel;
@@ -121,6 +123,7 @@ export const ScreenOverlays: React.FC = () => {
   const [showRecordsModal, setShowRecordsModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showCountryDebugModal, setShowCountryDebugModal] = useState(false);
+  const [showCountryStatsModal, setShowCountryStatsModal] = useState(false);
 
   const savedAvailable = hasSavedGame();
 
@@ -390,7 +393,7 @@ export const ScreenOverlays: React.FC = () => {
         </div>
 
         <div className="text-[10px] text-slate-400 bg-slate-950/60 p-2 rounded-lg">
-          ※本パラメータは世界銀行・UNDP・UNESCO・WHO等の国際傾向を参考にしつつ、ゲーム体験用に設計されたシミュレーション用仮指標です。国や国民の優劣や固定値を示すものではありません。
+          ※ここで変更・リセットできるのは「ゲームバランス調整値（ゲーム内換算値）」のみです。World Bank・WHO等の公式統計原数値は読み取り専用で改変されません。
         </div>
       </div>
     );
@@ -486,11 +489,21 @@ export const ScreenOverlays: React.FC = () => {
 
             <button
               type="button"
+              data-testid="open-country-stats-title-btn"
+              onClick={() => setShowCountryStatsModal(true)}
+              className="px-4 py-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 text-xs md:text-sm font-bold flex items-center gap-2 border border-sky-400/40 transition"
+            >
+              <Database className="w-4 h-4 text-sky-300" />
+              国別データ・出典
+            </button>
+
+            <button
+              type="button"
               onClick={() => setShowCountryDebugModal(true)}
               className="px-4 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-amber-200 text-xs md:text-sm font-bold flex items-center gap-2 border border-amber-400/30 transition"
             >
               <Globe className="w-4 h-4 text-amber-300" />
-              国別環境パラメータ調整
+              ゲームバランス調整
             </button>
 
             <button
@@ -549,6 +562,14 @@ export const ScreenOverlays: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Official Country Statistics & Sources Modal */}
+        {showCountryStatsModal && (
+          <CountryStatsModal
+            initialCountryId={country.id}
+            onClose={() => setShowCountryStatsModal(false)}
+          />
         )}
 
         {/* Country Social Parameters Debug Modal */}

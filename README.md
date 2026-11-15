@@ -491,3 +491,60 @@ npm run preview
    - 現在 Three.js を含むメインチャンクが約1.2MB（gzip時 約348KB）となっているため、動的 `import()` や `manualChunks` 設定によって初期表示をさらに高速化する余地があります。
 5. **多様な実機モバイル端末での継続的なタッチUX検証**
    - ブラウザのレスポンシブ検証およびカメラ投影行列テストに加えて、より多くのiOS / Android実機端末・ブラウザでのタッチ操作感やフレームレートのチューニングを継続していきます。
+
+---
+
+## 国別社会環境データの出典と計算方法
+
+SKY LIFE の国別社会環境データは、従来の独自調整値から、実在する国際機関の公式統計データに基づく検証可能なシステムへ刷新しました。詳細は [docs/statistics-methodology.md](docs/statistics-methodology.md) およびゲーム内の「国別データ・出典」画面で確認できます。
+
+### 1. 使用した公式統計機関
+- **世界銀行（World Bank Open Data）**: https://data.worldbank.org/ （CC BY 4.0）
+- **WHO（世界保健機関 / Global Health Observatory）**: https://www.who.int/data （CC BY-NC-SA 3.0 IGO / WHO Terms）
+- **UNESCO Institute for Statistics（UIS）**: https://uis.unesco.org/ （World Bank経由）
+- **ILOSTAT（国際労働機関）**: https://ilostat.ilo.org/ （World Bank経由）
+
+### 2. 対象6か国
+- 日本（`JPN`） / アメリカ（`USA`） / ブラジル（`BRA`） / インド（`IND`） / ケニア（`KEN`） / フランス（`FRA`）
+
+### 3. 公式指標一覧・4. 各国の実際の数値・5. 対象年・6. 出典URL
+
+> 以下はすべて公式APIから取得した原数値（改変なし）です。欠損項目は「データなし」として保持し、推測値で補完していません。
+
+| 指標名（コード） | 日本 (JPN) | アメリカ (USA) | ブラジル (BRA) | インド (IND) | ケニア (KEN) | フランス (FRA) | 出典URL |
+|---|---|---|---|---|---|---|---|
+| 中等教育総就学率 (`SE.SEC.ENRR`) | 101.38% (2022) | 97.47% (2022) | 105.70% (2022) | 81.18% (2022) | 83.77% (2022) | 104.32% (2022) | https://data.worldbank.org/indicator/SE.SEC.ENRR |
+| 前期中等教育修了率 (`SE.SEC.CMPT.LO.ZS`) | データなし | 101.36% (2022) | データなし | 87.28% (2024) | 101.23% (2023) | 99.49% (2024) | https://data.worldbank.org/indicator/SE.SEC.CMPT.LO.ZS |
+| 政府の教育支出 対GDP比【参考】 (`SE.XPD.TOTL.GD.ZS`) | 3.34% (2021) | 5.42% (2021) | 5.50% (2021) | 4.63% (2021) | 4.89% (2021) | 5.42% (2021) | https://data.worldbank.org/indicator/SE.XPD.TOTL.GD.ZS |
+| UHCサービス・カバレッジ指数 (`UHC_INDEX_REPORTED`) | 86 (2023) | 88 (2023) | 84 (2023) | 69 (2023) | 57 (2023) | 82 (2023) | https://www.who.int/data/gho/data/indicators/indicator-details/GHO/uhc-index-of-service-coverage |
+| 医療費の自己負担割合 (`SH.XPD.OOPC.CH.ZS`) | 12.24% (2023) | 10.93% (2023) | 26.23% (2023) | 43.89% (2023) | 24.25% (2023) | 9.26% (2023) | https://data.worldbank.org/indicator/SH.XPD.OOPC.CH.ZS |
+| 失業率・ILO推計 (`SL.UEM.TOTL.ZS`) | 2.50% (2024) | 4.02% (2024) | 6.80% (2024) | 4.17% (2024) | 5.49% (2024) | 7.40% (2024) | https://data.worldbank.org/indicator/SL.UEM.TOTL.ZS |
+| 15歳以上就業率・ILO推計 (`SL.EMP.TOTL.SP.ZS`) | 61.72% (2024) | 59.47% (2024) | 59.03% (2024) | 53.32% (2024) | 63.72% (2024) | 51.54% (2024) | https://data.worldbank.org/indicator/SL.EMP.TOTL.SP.ZS |
+| 一人当たりGDP PPP【参考】 (`NY.GDP.PCAP.PP.KD`) | $47,480 (2024) | $75,698 (2024) | $19,652 (2024) | $9,416 (2024) | $5,842 (2024) | $54,799 (2024) | https://data.worldbank.org/indicator/NY.GDP.PCAP.PP.KD |
+| 社会保護カバー率 (`per_allsp.cov_pop_tot`) | データなし | データなし | 52.26% (2022) | 77.18% (2011) | 27.40% (2015) | データなし | https://data.worldbank.org/indicator/per_allsp.cov_pop_tot |
+| 消費者物価上昇率【参考】 (`FP.CPI.TOTL.ZG`) | 2.74% (2024) | 2.95% (2024) | 4.37% (2024) | 4.95% (2024) | 4.49% (2024) | 2.00% (2024) | https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG |
+| ジニ指数【参考】 (`SI.POV.GINI`) | 32.3 (2020) | 41.8 (2024) | 50.3 (2024) | 23.0 (2023) | 38.5 (2022) | 31.8 (2023) | https://data.worldbank.org/indicator/SI.POV.GINI |
+| 高等教育総就学率【参考】 (`SE.TER.ENRR`) | 62.40% (2019) | 87.89% (2019) | 53.62% (2019) | 29.02% (2019) | 10.50% (2019) | 67.73% (2019) | https://data.worldbank.org/indicator/SE.TER.ENRR |
+
+### 7. 公式値からゲーム用パラメータへの変換式
+- ゲーム内の 0〜100 パラメータはすべて [src/utils/statisticsConverter.ts](src/utils/statisticsConverter.ts) にて公式値から算出される **「ゲーム内換算値」** であり、公式統計の原数値とは明確に分離されています。
+- 指標の方向性（例：失業率や医療費自己負担が高いほど負担増・機会減）を反転正規化し、極端な難易度にならないよう上下限（概ね 20〜92）に収めています。
+- ゲーム内の「人生難易度」やチャレンジ確率は、国別換算値だけでなく家庭環境・個人の努力・選択によっても動的に変化します。
+
+### 8. 欠損値の処理
+- 6か国共通年が存在する指標は共通年を採用し、共通年がない指標は国別の最新利用可能年を採用して比較年が異なる旨をUI上で明記しています。
+- 国際機関のデータセットに収録されていない値（例：ASPIREの高所得国データ等）は `null`（UI表記「データなし」）として保持し、推測や平均値補完は行っていません。社会保障などゲーム進行上必須の計算項目に欠損がある場合は、暫定換算ロジック（WHO UHCと医療自己負担率からの代理算出）を用い、UIに「暫定換算」と明記しています。
+
+### 9. データの限界
+- **一人当たりGDP（PPP）** はマクロ経済指標であり、家庭の可処分所得や生活費バランスそのものではありません。
+- **ジニ指数** は国全体の所得不平等度であり、都市部と地方の「地域間格差」そのものではありません。
+- **政府の教育支出（対GDP比）** は公的教育投資を示す参考指標であり、家計の直接学費負担額ではありません。
+- 6か国統一の「世代間所得移動率」はWorld Bank APIに単一指標が存在しないため、社会的移動機会は高等教育就学率等を用いた参考算出としています。
+
+### 10. 最終更新日
+- **2026年11月15日**（APIデータ取得日時: `2026-11-15T13:56:41Z` / 再取得スクリプト: `scripts/updateCountryStatistics.ts`）
+
+### 出典・ライセンス表記
+- World Bank Open Data (CC BY 4.0): https://data.worldbank.org/summary-terms-of-use
+- World Health Organization (WHO) Global Health Observatory: https://www.who.int/about/policies/publishing/data-policy
+- UNESCO Institute for Statistics (UIS) & ILOSTAT (via World Bank API)

@@ -14,94 +14,18 @@ import {
   DifficultyLevel,
 } from '../types/game';
 import { sanitizeStat } from './statSystem';
+import { buildAllOfficialDerivedCountryParams } from './statisticsConverter';
 
-export const COUNTRY_PARAMS_STORAGE_KEY = 'skylife_country_params_v1';
+export const COUNTRY_PARAMS_STORAGE_KEY = 'skylife_country_params_v2';
 
 /**
- * Single Source of Truth for Country Social Environment Parameters (0-100 internal indices).
- * Note: Inspired by macro public indicators (World Bank, UNDP, UNESCO, WHO) and adjusted
- * as game simulation parameters. They represent structural tendencies, not fixed values for every citizen.
+ * Single Source of Truth for Game-Calculated Country Simulation Parameters (0-100 "ゲーム内換算値").
+ * Strictly derived from verified official international statistics in src/data/officialCountryStatistics.json
+ * via src/utils/statisticsConverter.ts.
+ * Raw official statistics remain read-only and separate; user adjustments only affect these game balance multipliers.
  */
-export const DEFAULT_COUNTRY_PARAMETERS: Record<CountryId, CountrySocialParams> = {
-  japan: {
-    educationAccess: 88,
-    educationCostBurden: 56,
-    medicalAccess: 92,
-    medicalCostBurden: 24,
-    employmentOpportunity: 76,
-    incomeLivingBalance: 70,
-    socialSecurity: 84,
-    economicInstability: 32,
-    regionalDisparity: 44,
-    socialMobility: 62,
-    difficultyEventMultiplier: 1.0,
-  },
-  usa: {
-    educationAccess: 84,
-    educationCostBurden: 82,
-    medicalAccess: 78,
-    medicalCostBurden: 86,
-    employmentOpportunity: 84,
-    incomeLivingBalance: 72,
-    socialSecurity: 52,
-    economicInstability: 48,
-    regionalDisparity: 58,
-    socialMobility: 68,
-    difficultyEventMultiplier: 1.0,
-  },
-  brazil: {
-    educationAccess: 68,
-    educationCostBurden: 58,
-    medicalAccess: 66,
-    medicalCostBurden: 52,
-    employmentOpportunity: 58,
-    incomeLivingBalance: 50,
-    socialSecurity: 56,
-    economicInstability: 68,
-    regionalDisparity: 76,
-    socialMobility: 52,
-    difficultyEventMultiplier: 1.0,
-  },
-  india: {
-    educationAccess: 64,
-    educationCostBurden: 62,
-    medicalAccess: 60,
-    medicalCostBurden: 66,
-    employmentOpportunity: 66,
-    incomeLivingBalance: 52,
-    socialSecurity: 46,
-    economicInstability: 58,
-    regionalDisparity: 78,
-    socialMobility: 60,
-    difficultyEventMultiplier: 1.0,
-  },
-  kenya: {
-    educationAccess: 56,
-    educationCostBurden: 68,
-    medicalAccess: 52,
-    medicalCostBurden: 64,
-    employmentOpportunity: 52,
-    incomeLivingBalance: 44,
-    socialSecurity: 40,
-    economicInstability: 66,
-    regionalDisparity: 74,
-    socialMobility: 54,
-    difficultyEventMultiplier: 1.0,
-  },
-  france: {
-    educationAccess: 86,
-    educationCostBurden: 26,
-    medicalAccess: 90,
-    medicalCostBurden: 22,
-    employmentOpportunity: 68,
-    incomeLivingBalance: 72,
-    socialSecurity: 90,
-    economicInstability: 38,
-    regionalDisparity: 42,
-    socialMobility: 64,
-    difficultyEventMultiplier: 1.0,
-  },
-};
+export const DEFAULT_COUNTRY_PARAMETERS: Record<CountryId, CountrySocialParams> =
+  buildAllOfficialDerivedCountryParams();
 
 export function clampParam(val: unknown, fallback: number, min = 0, max = 100): number {
   const num = typeof val === 'number' ? val : Number(val);

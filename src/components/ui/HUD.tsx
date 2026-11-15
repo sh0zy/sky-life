@@ -27,8 +27,10 @@ import {
   BarChart3,
   ScrollText,
   X,
+  Database,
 } from 'lucide-react';
 import { StatDelta, CountryId, CountrySocialParams, ChoiceOption } from '../../types/game';
+import { CountryStatsModal } from './CountryStatsModal';
 
 export const STAT_META = [
   { key: 'happiness', label: '幸福度', icon: Smile, color: 'bg-amber-400', text: 'text-amber-300' },
@@ -93,6 +95,7 @@ export const HUD: React.FC = () => {
 
   const [debugTab, setDebugTab] = useState<'scheduler' | 'country'>('scheduler');
   const [selectedDebugCountry, setSelectedDebugCountry] = useState<CountryId | null>(null);
+  const [showCountryStatsModal, setShowCountryStatsModal] = useState(false);
 
   const chapterInfo = CHAPTERS[chapter];
   const progressPercent = Math.min(100, (age / 82) * 100);
@@ -103,6 +106,16 @@ export const HUD: React.FC = () => {
     environmentChangeLogs.length > 0
       ? environmentChangeLogs[environmentChangeLogs.length - 1]
       : null;
+
+  // ==================== 0. OFFICIAL COUNTRY STATS & SOURCES MODAL ====================
+  if (showCountryStatsModal) {
+    return (
+      <CountryStatsModal
+        initialCountryId={country.id}
+        onClose={() => setShowCountryStatsModal(false)}
+      />
+    );
+  }
 
   // ==================== 1. LIFE STATUS MODAL ("人生ステータス" 画面: 7 Stats + Growth Records) ====================
   if (phase === 'PAUSED' && mobileSheet !== 'none') {
@@ -319,16 +332,27 @@ export const HUD: React.FC = () => {
             </div>
           </div>
 
-          {/* Explicit Close & Resume Button */}
-          <button
-            type="button"
-            data-testid="close-status-modal-bottom"
-            onClick={closeMobileSheet}
-            className="w-full py-2.5 sm:py-3 rounded-2xl bg-gradient-to-r from-sky-400 to-indigo-600 hover:from-sky-300 hover:to-indigo-500 text-white font-black text-xs sm:text-sm shadow-xl flex items-center justify-center gap-2 shrink-0"
-          >
-            <Play className="w-4 h-4 fill-current" />
-            閉じてプレイを再開する
-          </button>
+          {/* Country Stats & Sources Button + Explicit Close & Resume Button */}
+          <div className="space-y-2 shrink-0">
+            <button
+              type="button"
+              data-testid="open-country-stats-mobile-btn"
+              onClick={() => setShowCountryStatsModal(true)}
+              className="w-full py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-sky-400/35 text-sky-200 font-bold text-xs flex items-center justify-center gap-1.5"
+            >
+              <Database className="w-3.5 h-3.5 text-sky-300" />
+              国別データ・出典を確認（公式統計）
+            </button>
+            <button
+              type="button"
+              data-testid="close-status-modal-bottom"
+              onClick={closeMobileSheet}
+              className="w-full py-2.5 sm:py-3 rounded-2xl bg-gradient-to-r from-sky-400 to-indigo-600 hover:from-sky-300 hover:to-indigo-500 text-white font-black text-xs sm:text-sm shadow-xl flex items-center justify-center gap-2"
+            >
+              <Play className="w-4 h-4 fill-current" />
+              閉じてプレイを再開する
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -670,6 +694,16 @@ export const HUD: React.FC = () => {
           >
             <ScrollText className="w-4 h-4" />
             <span className="hidden sm:inline">人生の記録</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="open-country-stats-pc-btn"
+            onClick={() => setShowCountryStatsModal(true)}
+            className="glass-panel px-3 py-2.5 rounded-xl hover:bg-slate-800/80 transition flex items-center gap-1.5 font-bold text-xs text-sky-200 shadow-lg border border-sky-400/30"
+          >
+            <Database className="w-4 h-4 text-sky-300" />
+            <span className="hidden sm:inline">国別データ・出典</span>
           </button>
 
           <button
